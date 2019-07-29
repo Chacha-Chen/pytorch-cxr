@@ -12,7 +12,6 @@ python -m torch.distributed.launch \
   --nproc_per_node 1 \
   --master_addr $MASTER_ADDR \
   --master_port $MASTER_PORT \
-  train.py \
+  train_noniid.py \
   --cuda 0 \
-  --runtime-dir 20190620_noniid_dist
-  
+  --runtime-dir 20190710_20k_noniid_dist_partial_share

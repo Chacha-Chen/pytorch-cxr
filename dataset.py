@@ -21,7 +21,7 @@ MIMIC_CXR_BASE = CXR_BASE.joinpath("mimic/v1").resolve()
 NIH_CXR_BASE = CXR_BASE.joinpath("nih/v1").resolve()
 
 MODES = ["per_image", "per_study"]
-
+MIN = 512
 
 def _load_manifest(file_path, num_labels=14, mode="per_study"):
     assert mode in MODES
@@ -58,19 +58,19 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
 
 cxr_train_transforms = tfms.Compose([
     tfms.ToPILImage(),
-    tfms.Resize(300, Image.LANCZOS),
-    tfms.RandomRotation((-10, 10)),
-    tfms.RandomCrop((256, 256)),
-    tfms.RandomHorizontalFlip(),
-    tfms.RandomVerticalFlip(),
+    #tfms.Resize(300, Image.LANCZOS),
+    #tfms.RandomRotation((-10, 10)),
+    tfms.RandomCrop((MIN, MIN)),
+    #tfms.RandomHorizontalFlip(),
+    #tfms.RandomVerticalFlip(),
     tfms.ToTensor(),
     #tfms.Normalize((0.1307,), (0.3081,))
 ])
 
 cxr_test_transforms = tfms.Compose([
     tfms.ToPILImage(),
-    tfms.Resize(256, Image.LANCZOS),
-    tfms.CenterCrop(256),
+    tfms.Resize(MIN, Image.LANCZOS),
+    tfms.CenterCrop(MIN),
     tfms.ToTensor(),
     #tfms.Normalize((0.1307,), (0.3081,))
 ])
@@ -84,7 +84,7 @@ def get_image(img_path, transforms):
 
 def get_study(img_paths, transforms):
     max_imgs = 20
-    image_tensor = torch.zeros(max_imgs, 256, 256)
+    image_tensor = torch.zeros(max_imgs, MIN, MIN)
     for i, img_path in enumerate(img_paths):
         image = imageio.imread(img_path)
         image_tensor[i, :, :] = transforms(image)
@@ -208,7 +208,7 @@ def copy_stanford_dataset(src_path):
             ff = src_path.joinpath(f).resolve()
             img = Image.open(ff)
             w, h = img.size
-            rs = (512, int(h/w*512)) if w < h else (int(w/h*512), 512)
+            rs = (MIN, int(h/w*MIN)) if w < h else (int(w/h*MIN), MIN)
             resized = img.resize(rs, Image.LANCZOS)
             r = ff.relative_to(src_path)
             t = STANFORD_CXR_BASE.joinpath(r).resolve()
@@ -230,7 +230,7 @@ def copy_mimic_dataset(src_path):
             ff = src_path.joinpath(f).resolve()
             img = Image.open(ff)
             w, h = img.size
-            rs = (512, int(h/w*512)) if w < h else (int(w/h*512), 512)
+            rs = (MIN, int(h/w*MIN)) if w < h else (int(w/h*MIN), MIN)
             resized = img.resize(rs, Image.LANCZOS)
             r = ff.relative_to(src_path)
             t = MIMIC_CXR_BASE.joinpath(r).resolve()
@@ -258,7 +258,7 @@ def copy_nih_dataset(src_path):
         ff = files_list[f]
         img = Image.open(ff)
         w, h = img.size
-        rs = (512, int(h/w*512)) if w < h else (int(w/h*512), 512)
+        rs = (MIN, int(h/w*MIN)) if w < h else (int(w/h*MIN), MIN)
         resized = img.resize(rs, Image.LANCZOS).convert('L')
         r = ff.relative_to(src_path)
         t = NIH_CXR_BASE.joinpath(r).resolve()

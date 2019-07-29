@@ -1,6 +1,9 @@
+from collections import OrderedDict
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.parallel import DistributedDataParallel
 
 import torchvision.models as tvm
 
@@ -83,6 +86,7 @@ class WindowOptimizer(nn.Module):
         x = self.tanh(x)
         return x
 
+
 class Network(nn.Module):
 
     def __init__(self, out_dim=14, mode="per_image"):
@@ -95,8 +99,27 @@ class Network(nn.Module):
         #self.main.fc = nn.Linear(self.main.fc.in_features, out_dim)
         self.main = tvm.densenet121(pretrained=True, drop_rate=0.5)
         self.main.features.conv0 = nn.Conv2d(20, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        self.main.classifier = nn.Linear(self.main.classifier.in_features, out_dim)
+        self.main.classifier = nn.Sequential(OrderedDict([
+            ('fc0', nn.Linear(self.main.classifier.in_features, 512)),
+            ('do0', nn.Dropout(0.5)),
+            ('fc1', nn.Linear(512, 512)),
+            ('do1', nn.Dropout(0.5)),
+            ('fc2', nn.Linear(512, out_dim)),
+        ]))
         self.mode = mode
+
+    def to_distributed(self, device):
+        modules = self.main.features.__dict__.get('_modules')
+
+        def closure(name):
+            modules[name] = DistributedDataParallel(modules[name], device_ids=[device], output_device=device,
+                                                    find_unused_parameters=True)
+
+        for name in modules.keys():
+            if 'denseblock' in name: # and name != 'denseblock1':
+                closure(name)
+            if 'transition' in name: # and name != 'transition1':
+                closure(name)
 
     def forward(self, x):
         if self.mode == "per_image":
@@ -110,3 +133,8 @@ class Network(nn.Module):
             raise RuntimeError
 
         return x
+
+
+if __name__ == "__main__":
+    m = Network()
+    m.to_distributed("cuda:0")

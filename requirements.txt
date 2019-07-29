@@ -9,6 +9,7 @@ future
 imageio
 pandas
 matplotlib
+seaborn
 tqdm
 ptable
 pyyaml
