@@ -203,7 +203,7 @@ def copy_stanford_dataset(src_path):
     for m in [src_path.joinpath("train.csv"), src_path.joinpath("valid.csv")]:
         print(f">>> processing {m}...")
         df = pd.read_csv(str(m))
-        for i in tqdm(range(len(df)), total=len(df)):
+        for i in tqdm(range(len(df)), total=len(df), dynamic_ncols=True):
             f = df.iloc[i]["Path"].split('/', 1)[1]
             ff = src_path.joinpath(f).resolve()
             img = Image.open(ff)
@@ -225,7 +225,7 @@ def copy_mimic_dataset(src_path):
     for m in [src_path.joinpath("train.csv"), src_path.joinpath("valid.csv")]:
         print(f">>> processing {m}...")
         df = pd.read_csv(str(m))
-        for i in tqdm(range(len(df)), total=len(df)):
+        for i in tqdm(range(len(df)), total=len(df), dynamic_ncols=True):
             f = df.iloc[i]["path"]
             ff = src_path.joinpath(f).resolve()
             img = Image.open(ff)
@@ -251,7 +251,7 @@ def copy_nih_dataset(src_path):
     for f in src_path.rglob("*.png"):
         files_list[f.name] = f
     df_tmps = []
-    for i, row in tqdm(df.iterrows(), total=len(df)):
+    for i, row in tqdm(df.iterrows(), total=len(df), dynamic_ncols=True):
         f = row["Image Index"]
         patient = row["Patient ID"]
         study = row["Follow-up #"]
