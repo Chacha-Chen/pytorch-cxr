@@ -120,11 +120,11 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         logger.info(f"initialized on {device} as rank {self.rank} of {self.world_size}")
 
         if self.rank == 0:
-            self.set_data_loader(self.stanford_datasets, None, 32, 8)
+            self.set_data_loader(self.stanford_datasets, None, 12, 8)
         elif self.rank == 1:
-            self.set_data_loader(self.mimic_datasets, None, 32, 8)
+            self.set_data_loader(self.mimic_datasets, None, 12, 8)
         else:
-            self.set_data_loader(self.nih_datasets, None, 32, 8)
+            self.set_data_loader(self.nih_datasets, None, 12, 8)
 
         #self.model = DistributedDataParallel(self.model, device_ids=[self.device],
         #                                     output_device=self.device, find_unused_parameters=True)
