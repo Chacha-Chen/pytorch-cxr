@@ -162,20 +162,21 @@ class Trainer:
             self.test(epoch, self.env.test_loader)
             self.save()
 
-    def train_epoch(self, epoch):
+    def train_epoch(self, epoch, ckpt=False):
         train_loader = self.env.train_loader
         train_set = train_loader.dataset
 
         CxrDataset.train()
         self.env.model.train()
-        progress = 0
 
         ave_len = len(train_loader) // 100 + 1
         ave_loss = tnt.meter.MovingAverageValueMeter(ave_len)
 
-        ckpt_step = 0.1
-        ckpts = iter(len(train_set) * np.arange(ckpt_step, 1 + ckpt_step, ckpt_step))
-        ckpt = next(ckpts)
+        if ckpt:
+            progress = 0
+            ckpt_step = 0.1
+            ckpts = iter(len(train_set) * np.arange(ckpt_step, 1 + ckpt_step, ckpt_step))
+            ckpt = next(ckpts)
 
         tqdm_desc = f"training [{self.env.rank}]"
         tqdm_pos = self.env.local_rank
@@ -200,11 +201,10 @@ class Trainer:
 
             t.set_description(f"{tqdm_desc} (loss: {loss.item():.4f})")
             t.refresh()
-
             ave_loss.add(loss.item())
-            progress += len(data)
 
-            if progress > ckpt and self.tensorboard:
+            if ckpt and progress > ckpt and self.tensorboard:
+                progress += len(data)
                 #logger.info(f"train epoch {epoch:03d}:  "
                 #        f"progress/total {progress:06d}/{len(train_loader.dataset):06d} "
                 #            f"({100. * batch_idx / len(train_loader):6.2f}%)  "
@@ -217,9 +217,12 @@ class Trainer:
 
             del loss
 
+        if not ckpt and self.tensorboard:
+            self.writer.add_scalar("loss", ave_loss.value()[0].item(), global_step=epoch)
+
         self.progress['loss'].append((epoch, ave_loss.value()[0].item()))
         logger.info(f"train epoch {epoch:03d}:  "
-                    f"loss {ave_loss.value()[0]:.6f}")
+                    f"ave loss {ave_loss.value()[0]:.6f}")
 
         self.env.save_model(self.runtime_path.joinpath(f"model_epoch_{epoch:03d}.{self.env.rank}.pth.tar"))
 
@@ -269,6 +272,8 @@ class Trainer:
                 p.add_row([labels[i], f"{aucs[i].value()[0]:.6f}"])
             ave_auc = np.mean([k.value()[0] for k in aucs])
             tbl_str = p.get_string(title=f"{prefix}auc scores (average {ave_auc:.6f})")
+            if self.tensorboard:
+                self.writer.add_scalar(f"{prefix}auc_score", ave_auc, global_step=epoch)
             logger.info(f"\n{tbl_str}")
 
         self.progress[f'{prefix}accuracy'].append((epoch, correct / total))
