@@ -21,7 +21,7 @@ MIMIC_CXR_BASE = CXR_BASE.joinpath("mimic/v1").resolve()
 NIH_CXR_BASE = CXR_BASE.joinpath("nih/v1").resolve()
 
 MODES = ["per_image", "per_study"]
-MIN = 512
+MIN = 256
 
 def _load_manifest(file_path, num_labels=14, mode="per_study"):
     assert mode in MODES
@@ -58,7 +58,7 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
 
 cxr_train_transforms = tfms.Compose([
     tfms.ToPILImage(),
-    #tfms.Resize(300, Image.LANCZOS),
+    tfms.Resize(266, Image.LANCZOS),
     #tfms.RandomRotation((-10, 10)),
     tfms.RandomCrop((MIN, MIN)),
     #tfms.RandomHorizontalFlip(),
