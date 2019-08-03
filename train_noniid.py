@@ -136,11 +136,6 @@ class NoniidTrainer(Trainer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.progress.update({
-            'xtest_accuracy': [],
-            'xtest_auc_score': [],
-        })
-
         for i, xtest in enumerate(self.env.xtest_loaders):
             xtest_percent = len(self.env.xtest.sampler) / len(self.env.xtest.dataset) * 100.
             logger.info(f"using {len(self.env.xtest.sampler)}/{len(self.env.xtest.dataset)} ({xtest_percent:.1f}%) entries for cross testing {i}")
@@ -160,11 +155,6 @@ class NoniidTrainer(Trainer):
 
     def cross_test_only(self, num_epoch, start_epoch=1):
         self.load()
-        self.progress.update({
-            'xtest_accuracy': [],
-            'xtest_auc_score': [],
-        })
-
         for epoch in range(start_epoch, num_epoch + 1):
             model_path = runtime_path.joinpath(f"model_epoch_{epoch:03d}.pth.tar")
             try:
@@ -179,13 +169,7 @@ class NoniidTrainer(Trainer):
         import pickle
         filepath = self.runtime_path.joinpath(f"train.0.pkl")
         with open(filepath, 'rb') as f:
-            self.progress = pickle.load(f)
-        self.progress.update({
-            'stanford_accuracy': [],
-            'stanford_auc_score': [],
-            'mimic_accuracy': [],
-            'mimic_auc_score': [],
-        })
+            self.metrics = pickle.load(f)
 
         for epoch in range(start_epoch, num_epoch + 1):
             model_path = runtime_path.joinpath(f"model_epoch_{epoch:03d}.pth.tar")
