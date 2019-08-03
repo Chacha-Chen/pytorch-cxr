@@ -1,4 +1,6 @@
 from pathlib import Path
+from warnings import simplefilter
+simplefilter(action='ignore', category=FutureWarning)
 
 import numpy as np
 from tqdm import tqdm
@@ -21,11 +23,18 @@ import torchnet as tnt
 
 from apex import amp
 
+from utils import logger, print_versions, get_devices, get_ip, get_commit
+from adamw import AdamW
 from predict import PredictEnvironment, Predictor
 from train import Trainer, initialize
 from dataset import STANFORD_CXR_BASE, MIMIC_CXR_BASE, NIH_CXR_BASE, CxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
-from utils import logger, print_versions, get_devices, get_ip, get_commit
-from adamw import AdamW
+
+
+def clean_logger():
+    logging.getLogger().handlers = []
+    for name in logging.root.manager.loggerDict:
+        if name != "pytorch-cxr":
+            logging.getLogger(name).handlers = []
 
 
 DATASETS = ["stanford", "mimic", "nih"]
@@ -58,13 +67,13 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         self.nih_datasets = cxr_random_split(nih_set, set_splits)
 
         if train_data == "stanford":
-            self.set_data_loader(self.stanford_datasets, None, 12, 8)
+            self.set_data_loader(self.stanford_datasets, None, 32, 8)
         elif train_data == "mimic":
-            self.set_data_loader(self.mimic_datasets, None, 12, 8)
+            self.set_data_loader(self.mimic_datasets, None, 32, 8)
         else:
-            self.set_data_loader(self.nih_datasets, None, 12, 8)
+            self.set_data_loader(self.nih_datasets, None, 32, 8)
 
-        self.labels = self.train_loader.dataset.labels
+        self.labels = [x.lower() for x in self.train_loader.dataset.labels]
         self.out_dim = len(self.labels)
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
 
@@ -84,10 +93,10 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         pin_memory = True if self.device.type == 'cuda' else False
         self.train_loader = DataLoader(main_datasets[0], batch_size=batch_size, num_workers=num_workers,
                                        shuffle=True, pin_memory=pin_memory)
-        self.test_loader = DataLoader(main_datasets[1], batch_size=batch_size * 3, num_workers=num_workers,
+        self.test_loader = DataLoader(main_datasets[1], batch_size=batch_size * 2, num_workers=num_workers * 2,
                                       shuffle=False, pin_memory=pin_memory)
         if xtest_datasets is not None:
-            self.xtest_loaders = [DataLoader(datasets[1], batch_size=batch_size * 3, num_workers=num_workers,
+            self.xtest_loaders = [DataLoader(datasets[1], batch_size=batch_size * 2, num_workers=num_workers * 2,
                                              shuffle=False, pin_memory=pin_memory)
                                   for datasets in xtest_datasets]
         else:
@@ -120,11 +129,11 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         logger.info(f"initialized on {device} as rank {self.rank} of {self.world_size}")
 
         if self.rank == 0:
-            self.set_data_loader(self.stanford_datasets, None, 12, 8)
+            self.set_data_loader(self.stanford_datasets, None, 32, 8)
         elif self.rank == 1:
-            self.set_data_loader(self.mimic_datasets, None, 12, 8)
+            self.set_data_loader(self.mimic_datasets, None, 32, 8)
         else:
-            self.set_data_loader(self.nih_datasets, None, 12, 8)
+            self.set_data_loader(self.nih_datasets, None, 32, 8)
 
         #self.model = DistributedDataParallel(self.model, device_ids=[self.device],
         #                                     output_device=self.device, find_unused_parameters=True)

@@ -1,5 +1,7 @@
 from pathlib import Path
 import pickle
+from warnings import simplefilter
+simplefilter(action='ignore', category=FutureWarning)
 
 import numpy as np
 from tqdm import tqdm
@@ -23,10 +25,10 @@ import sklearn.metrics as sklm
 
 from apex import amp
 
-from predict import PredictEnvironment, Predictor
-from dataset import STANFORD_CXR_BASE, MIMIC_CXR_BASE, CxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
 from utils import logger, print_versions, get_devices, get_ip, get_commit
 from adamw import AdamW
+from predict import PredictEnvironment, Predictor
+from dataset import STANFORD_CXR_BASE, MIMIC_CXR_BASE, CxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
 
 
 def check_distributed(args):
@@ -73,7 +75,7 @@ class TrainEnvironment(PredictEnvironment):
         self.train_loader = DataLoader(datasets[0], batch_size=32, num_workers=16, shuffle=True, pin_memory=pin_memory)
         self.test_loader = DataLoader(datasets[1], batch_size=32, num_workers=16, shuffle=False, pin_memory=pin_memory)
 
-        self.labels = datasets[0].labels
+        self.labels = [x.lower() for x in datasets[0].labels]
         self.out_dim = len(self.labels)
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
 
@@ -220,10 +222,6 @@ class Trainer:
             ave_loss.add(loss.item())
 
             if ckpt and progress > ckpt and self.tensorboard:
-                #logger.info(f"train epoch {epoch:03d}:  "
-                #        f"progress/total {progress:06d}/{len(train_loader.dataset):06d} "
-                #            f"({100. * batch_idx / len(train_loader):6.2f}%)  "
-                #            f"loss {loss.item():.6f}")
                 progress += len(data)
                 x = (epoch - 1) + progress / len(train_set)
                 global_step = int(x / ckpt_step)

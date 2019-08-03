@@ -2,10 +2,10 @@ from pathlib import Path
 
 import torch
 
+from utils import logger, print_versions
 from dataset import get_study, get_image
 from model import Network
 #from danet import Network
-from utils import logger, print_versions
 
 
 class PredictEnvironment:
