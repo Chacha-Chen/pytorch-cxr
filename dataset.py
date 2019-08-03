@@ -58,7 +58,7 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
 
 cxr_train_transforms = tfms.Compose([
     tfms.ToPILImage(),
-    tfms.Resize(266, Image.LANCZOS),
+    tfms.Resize(MIN+10, Image.LANCZOS),
     #tfms.RandomRotation((-10, 10)),
     tfms.RandomCrop((MIN, MIN)),
     #tfms.RandomHorizontalFlip(),
