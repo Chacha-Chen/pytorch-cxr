@@ -278,10 +278,10 @@ class Trainer:
             average_auc_score = np.mean(auc_scores)
 
             p = PrettyTable()
-            p.field_names = ["findings", "auc_score"]
+            p.field_names = ["labels", f"accuracy (tot. {total_accuracy:.6f})", f"auc_score (ave. {average_auc_score:.6f})"]
             for i in range(out_dim):
-                p.add_row([labels[i], f"{auc_scores[i]:.6f}"])
-            tbl_str = p.get_string(title=f"{prefix}auc scores (average {average_auc_score:.6f})")
+                p.add_row([labels[i], f"{accuracies[i]:.6f}", f"{auc_scores[i]:.6f}"])
+            tbl_str = p.get_string(title=f"{prefix}metrics per label")
             logger.info(f"\n{tbl_str}")
 
         if self.tensorboard:
