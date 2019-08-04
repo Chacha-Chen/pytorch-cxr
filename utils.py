@@ -140,5 +140,5 @@ def get_commit():
         branch = "(detached)"
     sha = repo.head.commit.hexsha
     dttm = repo.head.commit.committed_datetime
-    return f"{branch} / {sha} ({dttm})"
+    return f"{branch}/{sha} ({dttm})"
 

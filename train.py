@@ -72,8 +72,8 @@ class TrainEnvironment(PredictEnvironment):
         #datasets = random_split(subset, [len(subset) - 12, 12])
 
         pin_memory = True if self.device.type == 'cuda' else False
-        self.train_loader = DataLoader(datasets[0], batch_size=32, num_workers=16, shuffle=True, pin_memory=pin_memory)
-        self.test_loader = DataLoader(datasets[1], batch_size=32, num_workers=16, shuffle=False, pin_memory=pin_memory)
+        self.train_loader = DataLoader(datasets[0], batch_size=16, num_workers=8, shuffle=True, pin_memory=pin_memory)
+        self.test_loader = DataLoader(datasets[1], batch_size=16, num_workers=8, shuffle=False, pin_memory=pin_memory)
 
         self.labels = [x.lower() for x in datasets[0].labels]
         self.out_dim = len(self.labels)
