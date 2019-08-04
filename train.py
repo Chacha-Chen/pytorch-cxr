@@ -182,6 +182,7 @@ class Trainer:
             self.save()
 
     def train_epoch(self, epoch, ckpt=False):
+        labels = self.env.labels
         train_loader = self.env.train_loader
         train_set = train_loader.dataset
 
@@ -217,15 +218,15 @@ class Trainer:
 
             #self.env.scheduler.step(loss.item())
 
-            t.set_description(f"{tqdm_desc} (loss: {loss.item():.4f})")
-            t.refresh()
             ave_loss.add(loss.item())
+            t.set_description(f"{tqdm_desc} (loss: {ave_loss.value()[0].item():.4f})")
+            t.refresh()
 
             if ckpt and progress > ckpt and self.tensorboard:
                 progress += len(data)
                 x = (epoch - 1) + progress / len(train_set)
                 global_step = int(x / ckpt_step)
-                self.writer.add_scalar("loss", loss.item(), global_step=global_step)
+                self.writer.add_scalar("total/loss", ave_loss.value()[0].item(), global_step=global_step)
                 ckpt = next(ckpts)
 
             del loss

@@ -101,11 +101,12 @@ class Network(nn.Module):
         self.main.features.conv0 = nn.Conv2d(20, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.custom = nn.ModuleList([
             nn.Sequential(OrderedDict([
-                ('fc0', nn.Linear(1000, 256)),
                 ('do0', nn.Dropout(0.5)),
-                ('fc1', nn.Linear(256, 256)),
+                ('fc0', nn.Linear(1000, 1000)),
                 ('do1', nn.Dropout(0.5)),
-                ('fc2', nn.Linear(256, 1)),
+                ('fc1', nn.Linear(1000, 1000)),
+                ('do2', nn.Dropout(0.5)),
+                ('fc2', nn.Linear(1000, 1)),
             ])) for _ in range(out_dim)
         ])
         self.mode = mode
