@@ -230,8 +230,8 @@ class Trainer:
                 progress += len(data)
                 x = (epoch - 1) + progress / len(train_set)
                 global_step = int(x / ckpt_step)
-                for l in ave_losses:
-                    self.writer.add_scalar(f"{l}/loss", l.value()[0].item(), global_step=global_step)
+                for i, l in enumerate(labels):
+                    self.writer.add_scalar(f"{l}/loss", ave_losses[i].value()[0].item(), global_step=global_step)
                 self.writer.add_scalar("total/loss", ave_loss.value()[0].item(), global_step=global_step)
                 ckpt = next(ckpts)
 
@@ -249,12 +249,12 @@ class Trainer:
 
         if not ckpt and self.tensorboard:
             self.writer.add_scalar("total/loss", ave_loss.value()[0].item(), global_step=epoch)
-            for l in ave_losses:
-                self.writer.add_scalar(f"{l}/loss", l.value()[0].item(), global_step=epoch)
+            for i, l in enumerate(labels):
+                self.writer.add_scalar(f"{l}/loss", ave_losses[i].value()[0].item(), global_step=epoch)
 
         self.add_metric('total/loss', (epoch, ave_loss.value()[0].item()))
-        for l in ave_losses:
-            self.add_metric(f"{l}/loss", (epoch, l.value()[0].item()))
+        for i, l in enumerate(labels):
+            self.add_metric(f"{l}/loss", (epoch, ave_losses[i].value()[0].item()))
 
         self.env.save_model(self.runtime_path.joinpath(f"model_epoch_{epoch:03d}.{self.env.rank}.pth.tar"))
 
