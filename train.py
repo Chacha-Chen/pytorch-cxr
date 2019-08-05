@@ -86,7 +86,7 @@ class TrainEnvironment(PredictEnvironment):
 
         self.optimizer = AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-2)
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights)
+        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
 
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
@@ -190,6 +190,7 @@ class Trainer:
         self.env.model.train()
 
         ave_len = len(train_loader) // 100 + 1
+        ave_losses = [tnt.meter.MovingAverageValueMeter(ave_len) for _ in labels]
         ave_loss = tnt.meter.MovingAverageValueMeter(ave_len)
 
         if ckpt:
@@ -208,7 +209,11 @@ class Trainer:
             data, target = data.to(self.env.device), target.to(self.env.device)
             self.env.optimizer.zero_grad()
             output = self.env.model(data)
-            loss = self.env.loss(output, target)
+            losses = self.env.loss(output, target).mean(dim=0)
+            loss = losses.mean()
+            for a, l in zip(ave_losses, losses):
+                a.add(l.item())
+            ave_loss.add(loss.item())
             if self.env.amp:
                 with amp.scale_loss(loss, self.env.optimizer) as scaled_loss:
                     scaled_loss.backward()
@@ -218,7 +223,6 @@ class Trainer:
 
             #self.env.scheduler.step(loss.item())
 
-            ave_loss.add(loss.item())
             t.set_description(f"{tqdm_desc} (loss: {ave_loss.value()[0].item():.4f})")
             t.refresh()
 
@@ -226,6 +230,8 @@ class Trainer:
                 progress += len(data)
                 x = (epoch - 1) + progress / len(train_set)
                 global_step = int(x / ckpt_step)
+                for l in ave_losses:
+                    self.writer.add_scalar(f"{l}/loss", l.value()[0].item(), global_step=global_step)
                 self.writer.add_scalar("total/loss", ave_loss.value()[0].item(), global_step=global_step)
                 ckpt = next(ckpts)
 
@@ -234,10 +240,22 @@ class Trainer:
         logger.info(f"train epoch {epoch:03d}:  "
                     f"ave loss {ave_loss.value()[0].item():.6f}")
 
+        p = PrettyTable()
+        p.field_names = ["labels", f"loss (ave. {ave_loss.value()[0].item():.6f})"]
+        for i, l in enumerate(labels):
+            p.add_row([l, f"{ave_losses[i].value()[0].item():.6f}"])
+        tbl_str = p.get_string()  #title=f"metrics per label")
+        logger.info(f"\n{tbl_str}")
+
         if not ckpt and self.tensorboard:
             self.writer.add_scalar("total/loss", ave_loss.value()[0].item(), global_step=epoch)
+            for l in ave_losses:
+                self.writer.add_scalar(f"{l}/loss", l.value()[0].item(), global_step=epoch)
 
         self.add_metric('total/loss', (epoch, ave_loss.value()[0].item()))
+        for l in ave_losses:
+            self.add_metric(f"{l}/loss", (epoch, l.value()[0].item()))
+
         self.env.save_model(self.runtime_path.joinpath(f"model_epoch_{epoch:03d}.{self.env.rank}.pth.tar"))
 
     def test(self, epoch, test_loader, prefix=""):
@@ -280,9 +298,9 @@ class Trainer:
 
             p = PrettyTable()
             p.field_names = ["labels", f"accuracy (tot. {total_accuracy:.6f})", f"auc_score (ave. {average_auc_score:.6f})"]
-            for i in range(out_dim):
-                p.add_row([labels[i], f"{accuracies[i]:.6f}", f"{auc_scores[i]:.6f}"])
-            tbl_str = p.get_string(title=f"{prefix}metrics per label")
+            for i, l in enumerate(labels):
+                p.add_row([l, f"{accuracies[i]:.6f}", f"{auc_scores[i]:.6f}"])
+            tbl_str = p.get_string()  #title=f"{prefix}metrics per label")
             logger.info(f"\n{tbl_str}")
 
         if self.tensorboard:
