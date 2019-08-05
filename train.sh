@@ -14,4 +14,5 @@ python -m torch.distributed.launch \
   --cuda 0,1,2 \
   --tensorboard \
   --epoch 500 \
+  --start-epoch 14 \
   --runtime-dir 20190805_20k_noniid_dist_label_split
