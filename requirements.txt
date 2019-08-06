@@ -8,11 +8,12 @@ git+http://github.com/nvidia/apex.git
 future
 imageio
 pandas
+sklearn
 matplotlib
 seaborn
 tqdm
 ptable
 pyyaml
 slackclient
-tensorboard
+tb-nightly
 gitpython
