@@ -103,7 +103,7 @@ class Network(nn.Module):
             nn.Sequential(OrderedDict([
                 ('do0', nn.Dropout(0.5)),
                 ('fc0', nn.Linear(512, 512)),
-                ('do1', nn.Dropout(0.5)),
+                ('bn1', nn.BatchNorm1d(512)),
                 ('fc1', nn.Linear(512, 512)),
                 ('do2', nn.Dropout(0.5)),
                 ('fc2', nn.Linear(512, 1)),
