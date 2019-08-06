@@ -102,7 +102,8 @@ class TrainEnvironment(PredictEnvironment):
         filepath = Path(filename).resolve()
         logger.debug(f"saving the model to {filepath}")
         state = self.model.state_dict()
-        torch.save(state, filename)
+        pkg = { 'state': state, 'thresholds': self.thresholds }
+        torch.save(pkg, filename)
 
 
 class DistributedTrainEnvironment(TrainEnvironment):
@@ -282,12 +283,11 @@ class Trainer:
                 ys_hat = np.append(ys_hat, output.cpu().numpy(), axis=0)
 
         # roc and threshold
-        threshold = np.zeros(out_dim)
         for i, l in enumerate(labels):
             fprs, tprs, thrs = sklm.roc_curve(ys[:, i], ys_hat[:, i])
             rects = [(1. - w) * h for w, h in zip(fprs, tprs)]
             idx = np.argmax(rects)
-            threshold[i] = thrs[idx]
+            self.env.thresholds[i] = thrs[idx]
             if self.tensorboard:
                 fig = plt.figure()
                 ax1 = fig.add_subplot(1, 1, 1)
@@ -307,7 +307,7 @@ class Trainer:
         # accuracy
         accuracies = [0.] * out_dim
         for i, l in enumerate(labels):
-            t, p = ys[:, i].astype(np.int), (ys_hat[:, i] > threshold[i]).astype(np.int)
+            t, p = ys[:, i].astype(np.int), (ys_hat[:, i] > self.env.thresholds[i]).astype(np.int)
             accuracies[i] = sklm.accuracy_score(t.flatten(), p.flatten(), normalize=True)
         total_accuracy = (np.sum(accuracies) * ys.shape[0]) / ys.size
 
