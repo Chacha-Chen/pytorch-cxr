@@ -98,16 +98,17 @@ class Network(nn.Module):
         #self.main.conv1 = nn.Conv2d(20, 64, kernel_size=7, stride=2, padding=3, bias=False)
         #self.main.fc = nn.Linear(self.main.fc.in_features, out_dim)
         #self.main = tvm.densenet121(pretrained=False, drop_rate=0.5, num_classes=512)
-        self.main = tvm.densenet121(pretrained=False, num_classes=512)
+        num_fc_neurons = 512
+        self.main = tvm.densenet121(pretrained=False, num_classes=num_fc_neurons)
         self.main.features.conv0 = nn.Conv2d(20, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.custom = nn.ModuleList([
             nn.Sequential(OrderedDict([
-                ('bn0', nn.BatchNorm1d(512)),
-                ('fc0', nn.Linear(512, 512)),
-                ('do1', nn.Dropout(0.5)),
-                ('fc1', nn.Linear(512, 512)),
-                ('do2', nn.Dropout(0.5)),
-                ('fc2', nn.Linear(512, 1)),
+                ('bn0', nn.BatchNorm1d(num_fc_neurons)),
+                ('fc0', nn.Linear(num_fc_neurons, num_fc_neurons)),
+                ('bn1', nn.BatchNorm1d(num_fc_neurons)),
+                ('fc1', nn.Linear(num_fc_neurons, num_fc_neurons)),
+                ('bn2', nn.BatchNorm1d(num_fc_neurons)),
+                ('fc2', nn.Linear(num_fc_neurons, 1)),
             ])) for _ in range(out_dim)
         ])
         self.mode = mode
