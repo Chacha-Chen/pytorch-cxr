@@ -67,11 +67,11 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         self.nih_datasets = cxr_random_split(nih_set, set_splits)
 
         if train_data == "stanford":
-            self.set_data_loader(self.stanford_datasets, None, 32, 8)
+            self.set_data_loader(self.stanford_datasets, None, 16, 8)
         elif train_data == "mimic":
-            self.set_data_loader(self.mimic_datasets, None, 32, 8)
+            self.set_data_loader(self.mimic_datasets, None, 16, 8)
         else:
-            self.set_data_loader(self.nih_datasets, None, 32, 8)
+            self.set_data_loader(self.nih_datasets, None, 16, 8)
 
         self.labels = [x.lower() for x in self.train_loader.dataset.labels]
         self.out_dim = len(self.labels)
@@ -89,7 +89,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
-    def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=32, num_workers=8):
+    def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=16, num_workers=8):
         pin_memory = True if self.device.type == 'cuda' else False
         self.train_loader = DataLoader(main_datasets[0], batch_size=batch_size, num_workers=num_workers,
                                        shuffle=True, pin_memory=pin_memory)
@@ -129,11 +129,11 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         logger.info(f"initialized on {device} as rank {self.rank} of {self.world_size}")
 
         if self.rank == 0:
-            self.set_data_loader(self.stanford_datasets, None, 32, 8)
+            self.set_data_loader(self.stanford_datasets, None, 16, 8)
         elif self.rank == 1:
-            self.set_data_loader(self.mimic_datasets, None, 32, 8)
+            self.set_data_loader(self.mimic_datasets, None, 16, 8)
         else:
-            self.set_data_loader(self.nih_datasets, None, 32, 8)
+            self.set_data_loader(self.nih_datasets, None, 16, 8)
 
         #self.model = DistributedDataParallel(self.model, device_ids=[self.device],
         #                                     output_device=self.device, find_unused_parameters=True)
