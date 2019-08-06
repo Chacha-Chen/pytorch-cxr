@@ -303,7 +303,7 @@ class Trainer:
                 ax2 = ax1.twinx()
                 ax2.plot(fprs, thrs, 'r-')
                 ax2.plot([0., 1.], [thrs[idx], thrs[idx]], 'm--')
-                ax1.set_ylim([thrs[-1], thrs[0]])
+                ax2.set_ylim([thrs[-1], thrs[0]])
                 ax2.set_ylabel('threshold')
                 self.writer.add_figure(f"{l}/{prefix}roc_curve", fig, global_step=epoch)
             self.add_metric(f'{l}/{prefix}roc_curve', (epoch, (fprs, tprs, thrs)))
