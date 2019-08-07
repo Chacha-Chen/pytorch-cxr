@@ -102,18 +102,17 @@ class Network(nn.Module):
         self.main.features.conv0 = nn.Conv2d(20, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.custom = nn.ModuleList([
             nn.Sequential(OrderedDict([
-                ('bn0', nn.BatchNorm1d(num_fc_neurons)),
+                #('bn0', nn.BatchNorm1d(num_fc_neurons)),
+                ('do0', nn.Dropout(0.5)),
+                ('fc0', nn.Linear(num_fc_neurons, num_fc_neurons)),
                 ('rl0', nn.ReLU()),
-                #('do0', nn.Dropout(0.5)),
+                #('bn1', nn.BatchNorm1d(num_fc_neurons)),
+                ('do1', nn.Dropout(0.5)),
                 ('fc1', nn.Linear(num_fc_neurons, num_fc_neurons)),
-                ('bn1', nn.BatchNorm1d(num_fc_neurons)),
                 ('rl1', nn.ReLU()),
-                #('do1', nn.Dropout(0.5)),
-                ('fc2', nn.Linear(num_fc_neurons, num_fc_neurons)),
-                ('bn2', nn.BatchNorm1d(num_fc_neurons)),
-                ('rl2', nn.ReLU()),
-                #('do2', nn.Dropout(0.5)),
-                ('fc3', nn.Linear(num_fc_neurons, 1)),
+                #('bn2', nn.BatchNorm1d(num_fc_neurons)),
+                ('do2', nn.Dropout(0.5)),
+                ('fc2', nn.Linear(num_fc_neurons, 1)),
             ])) for _ in range(out_dim)
         ])
         self.mode = mode
