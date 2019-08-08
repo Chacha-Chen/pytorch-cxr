@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import torch
 
 from utils import logger, print_versions
@@ -13,19 +14,23 @@ class PredictEnvironment:
     def __init__(self, out_dim, device, model_file=None):
         self.device = device
         self.model = Network(out_dim, mode="per_study").to(self.device)
+        self.thresholds = np.zeros(out_dim)
         if model_file is not None:
             self.load_model(model_file)
 
     def load_model(self, filename):
         filepath = Path(filename).resolve()
         logger.debug(f"loading the model from {filepath}")
-        states = torch.load(filepath, map_location=self.device)
+        pkg = torch.load(filepath, map_location=self.device)
+        state = pkg['state']
+        self.thresholds = pkg['thresholds']
+
         try:
-            self.model.load_state_dict(states, strict=True)
+            self.model.load_state_dict(state, strict=True)
         except:
             # remove 'module.' from keys due to DDP
-            new_states = { k.replace('module.', ''): v for k, v in states.items() }
-            self.model.load_state_dict(new_states, strict=True)
+            new_state = { k.replace('module.', ''): v for k, v in state.items() }
+            self.model.load_state_dict(new_state, strict=True)
 
 
 class Predictor:

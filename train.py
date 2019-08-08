@@ -102,7 +102,8 @@ class TrainEnvironment(PredictEnvironment):
         filepath = Path(filename).resolve()
         logger.debug(f"saving the model to {filepath}")
         state = self.model.state_dict()
-        torch.save(state, filename)
+        pkg = { 'state': state, 'thresholds': self.thresholds }
+        torch.save(pkg, filename)
 
 
 class DistributedTrainEnvironment(TrainEnvironment):
@@ -281,39 +282,69 @@ class Trainer:
                 ys = np.append(ys, target.cpu().numpy(), axis=0)
                 ys_hat = np.append(ys_hat, output.cpu().numpy(), axis=0)
 
-            # accuracy
-            threshold = np.zeros(out_dim)
-            accuracies = [0.] * out_dim
-            for i, l in enumerate(labels):
-                t, p = ys[:, i].astype(np.int), (ys_hat[:, i] > threshold[i]).astype(np.int)
-                accuracies[i] = sklm.accuracy_score(t.flatten(), p.flatten(), normalize=True)
-            total_accuracy = (np.sum(accuracies) * ys.shape[0]) / ys.size
+        # roc and threshold
+        for i, l in enumerate(labels):
+            fprs, tprs, thrs = sklm.roc_curve(ys[:, i], ys_hat[:, i])
+            rects = [(1. - w) * h for w, h in zip(fprs, tprs)]
+            idx = np.argmax(rects)
+            self.env.thresholds[i] = thrs[idx]
+            if self.tensorboard:
+                fig = plt.figure()
+                ax1 = fig.add_subplot(1, 1, 1)
+                ax1.plot(fprs, tprs, 'b-')
+                ax1.plot([0., 1.], [0., 1.], 'k--')
+                ax1.plot([fprs[idx], fprs[idx]], [0., 1.], 'c--')
+                ax1.plot([0., 1.], [tprs[idx], tprs[idx]], 'c--')
+                ax1.set_xlim([0., 1.])
+                ax1.set_ylim([0., 1.])
+                plt.xlabel('FPR')
+                plt.ylabel('TPR')
+                plt.title(f'ROC curve for {l} at epoch {epoch}')
+                ax2 = ax1.twinx()
+                ax2.plot(fprs, thrs, 'r-')
+                ax2.plot([0., 1.], [thrs[idx], thrs[idx]], 'm--')
+                ax2.set_ylim([thrs[-1], thrs[0]])
+                ax2.set_ylabel('threshold')
+                self.writer.add_figure(f"{l}/{prefix}roc_curve", fig, global_step=epoch)
+            self.add_metric(f'{l}/{prefix}roc_curve', (epoch, (fprs, tprs, thrs)))
 
-            logger.info(f"val epoch {epoch:03d}:  "
-                        f"{prefix}accuracy {total_accuracy:.6f}")
+        # accuracy
+        accuracies = [0.] * out_dim
+        for i, l in enumerate(labels):
+            t, p = ys[:, i].astype(np.int), (ys_hat[:, i] > self.env.thresholds[i]).astype(np.int)
+            accuracies[i] = sklm.accuracy_score(t.flatten(), p.flatten(), normalize=True)
+        total_accuracy = (np.sum(accuracies) * ys.shape[0]) / ys.size
 
-            # auc score
-            auc_scores = sklm.roc_auc_score(ys, ys_hat, average=None)
-            average_auc_score = np.mean(auc_scores)
-
-            p = PrettyTable()
-            p.field_names = ["labels", f"accuracy (tot. {total_accuracy:.6f})", f"auc_score (ave. {average_auc_score:.6f})"]
-            for i, l in enumerate(labels):
-                p.add_row([l, f"{accuracies[i]:.6f}", f"{auc_scores[i]:.6f}"])
-            tbl_str = p.get_string()  #title=f"{prefix}metrics per label")
-            logger.info(f"\n{tbl_str}")
+        logger.info(f"val epoch {epoch:03d}:  "
+                    f"{prefix}accuracy {total_accuracy:.6f}")
 
         if self.tensorboard:
             self.writer.add_scalar(f"total/{prefix}accuracy", total_accuracy, global_step=epoch)
-            self.writer.add_scalar(f"total/{prefix}average_auc_score", average_auc_score, global_step=epoch)
             for i, l in enumerate(labels):
                 self.writer.add_scalar(f"{l}/{prefix}accuracy", accuracies[i], global_step=epoch)
-                self.writer.add_scalar(f"{l}/{prefix}auc_score", auc_scores[i], global_step=epoch)
 
         self.add_metric(f'total/{prefix}accuracy', (epoch, total_accuracy))
-        self.add_metric(f'total/{prefix}auc_score', (epoch, average_auc_score))
         for i, l in enumerate(labels):
             self.add_metric(f'{l}/{prefix}accuracy', (epoch, accuracies[i]))
+
+        # auc score
+        auc_scores = sklm.roc_auc_score(ys, ys_hat, average=None)
+        average_auc_score = np.mean(auc_scores)
+
+        p = PrettyTable()
+        p.field_names = ["labels", f"accuracy (tot. {total_accuracy:.6f})", f"auc_score (ave. {average_auc_score:.6f})"]
+        for i, l in enumerate(labels):
+            p.add_row([l, f"{accuracies[i]:.6f}", f"{auc_scores[i]:.6f}"])
+        tbl_str = p.get_string()  #title=f"{prefix}metrics per label")
+        logger.info(f"\n{tbl_str}")
+
+        if self.tensorboard:
+            self.writer.add_scalar(f"total/{prefix}average_auc_score", average_auc_score, global_step=epoch)
+            for i, l in enumerate(labels):
+                self.writer.add_scalar(f"{l}/{prefix}auc_score", auc_scores[i], global_step=epoch)
+
+        self.add_metric(f'total/{prefix}auc_score', (epoch, average_auc_score))
+        for i, l in enumerate(labels):
             self.add_metric(f'{l}/{prefix}auc_score', (epoch, auc_scores[i]))
 
     def load(self):
