@@ -157,9 +157,12 @@ class NoniidTrainer(Trainer):
 
         for epoch in range(start_epoch, num_epoch + 1):
             self.train_epoch(epoch)
-            self.test(epoch, self.env.test_loader)
+            ys, ys_hat = self.test(epoch, self.env.test_loader)
+            self.calculate_metrics(epoch, ys, ys_hat)
             for i, xtest in enumerate(self.env.xtest_loaders):
-                self.test(epoch, xtest, prefix=f"xtest{i}_")
+                prefix = f"xtest{i}_"
+                ys, ys_hat = self.test(epoch, xtest, prefix=prefix)
+                self.calculate_metrics(epoch, ys, ys_hat, prefix)
             self.save()
 
     def cross_test_only(self, num_epoch, start_epoch=1):

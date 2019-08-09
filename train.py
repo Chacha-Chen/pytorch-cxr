@@ -1,6 +1,5 @@
 from pathlib import Path
 import pickle
-import multiprocessing as mp
 from warnings import simplefilter
 simplefilter(action='ignore', category=FutureWarning)
 
@@ -178,17 +177,11 @@ class Trainer:
                 self.env.train_loader.sampler.set_epoch(start_epoch - 1)
             self.load()
 
-        ps = []
-
         for epoch in range(start_epoch, num_epoch + 1):
             self.train_epoch(epoch)
             ys, ys_hat = self.test(epoch, self.env.test_loader)
-            p = mp.Process(target=self.calculate_metrics, args=(epoch, ys, ys_hat, ""))
-            ps.append(p)
-            p.start()
-
-        for p in ps:
-            p.join()
+            self.calculate_metrics(epoch, ys, ys_hat)
+            self.save()
 
     def train_epoch(self, epoch, ckpt=False):
         labels = self.env.labels
@@ -290,7 +283,9 @@ class Trainer:
                 ys = np.append(ys, target.cpu().numpy(), axis=0)
                 ys_hat = np.append(ys_hat, output.cpu().numpy(), axis=0)
 
-    def calculate_metrics(self, epoch, ys, ys_hat, prefix):
+        return ys, ys_hat
+
+    def calculate_metrics(self, epoch, ys, ys_hat, prefix=""):
         out_dim = self.env.out_dim
         labels = self.env.labels
 
@@ -372,6 +367,7 @@ class Trainer:
                 ax1.plot(rcs, pcs, 'b-')
                 ax1.plot([rcs[idx], rcs[idx]], [0., 1.], 'c--')
                 ax1.plot([0., 1.], [pcs[idx], pcs[idx]], 'c--')
+                ax1.plot([selected_tprs[i], selected_tprs[i]], [0., 1.], 'g--')
                 ax1.set_xlim([0., 1.])
                 ax1.set_ylim([0., 1.])
                 plt.xlabel('recall (TPR, sensitivity)')
@@ -379,9 +375,8 @@ class Trainer:
                 plt.title(f'precision-recall curve for {l} at epoch {epoch}')
                 ax2 = ax1.twinx()
                 ax2.plot(rcs[:-1], thrs, 'r-')
-                ax2.plot([selected_tprs[i], selected_tprs[i]], [0., 1.], 'm-')
-                ax2.plot([0., 1.], [self.env.thresholds[i], self.env.thresholds[i]], 'm-')
                 ax2.plot([0., 1.], [thrs[idx], thrs[idx]], 'm--')
+                ax2.plot([0., 1.], [self.env.thresholds[i], self.env.thresholds[i]], 'g--')
                 ax2.set_ylim([thrs[0], thrs[-1]])
                 ax2.set_ylabel('threshold')
                 self.writer.add_figure(f"{l}/{prefix}precision_recall_curve", fig, global_step=epoch)
@@ -396,8 +391,6 @@ class Trainer:
             self.add_metric(f'{l}/{prefix}precision', (epoch, precision[0]))
             self.add_metric(f'{l}/{prefix}recall', (epoch, recall[0]))
             self.add_metric(f'{l}/{prefix}f1_score', (epoch, f1_score[0]))
-
-        self.save()
 
     def load(self):
         filepath = self.runtime_path.joinpath(f"train.{self.env.rank}.pkl")
