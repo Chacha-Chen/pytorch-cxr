@@ -220,6 +220,7 @@ class Trainer:
                     scaled_loss.backward()
             else:
                 loss.backward()
+            nn.utils.clip_grad_norm_(self.env.model.parameters(), 1e-2)
             self.env.optimizer.step()
 
             #self.env.scheduler.step(loss.item())

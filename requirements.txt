@@ -1,5 +1,7 @@
-https://download.pytorch.org/whl/cu100/torch-1.1.0-cp37-cp37m-linux_x86_64.whl
-https://download.pytorch.org/whl/cu100/torchvision-0.3.0-cp37-cp37m-linux_x86_64.whl
+torch
+torchvision
+#https://download.pytorch.org/whl/cu100/torch-1.1.0-cp37-cp37m-linux_x86_64.whl
+#https://download.pytorch.org/whl/cu100/torchvision-0.3.0-cp37-cp37m-linux_x86_64.whl
 #git+http://github.com/pytorch/vision.git
 #git+http://github.com/pytorch/audio.git
 #git+http://github.com/pytorch/text.git
