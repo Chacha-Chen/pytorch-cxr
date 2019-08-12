@@ -115,7 +115,7 @@ class CxrDataset(Dataset):
 
         if self.mode == "per_image":
             img_path, label = get_entries(index)
-            image_tensor = get_image(img_path, CxrDataset.transforms)
+            image_tensor = get_image(img_path[0], CxrDataset.transforms)
             target_tensor = torch.FloatTensor(label)
         elif self.mode == "per_study":
             img_paths, label = get_entries(index)

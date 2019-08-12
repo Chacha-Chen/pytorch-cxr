@@ -151,18 +151,9 @@ class Network(nn.Module):
                                             find_unused_parameters=True)
 
     def forward(self, x):
-        if self.mode == "per_image":
-            x = self.stn(x)
-            x = self.winopt(x)
-            x = x.repeat(1, 3, 1, 1)
-            x = self.main(x)
-        elif self.mode == "per_study":
-            x = self.main(x)
-            xs = [m(x) for m in self.custom]
-            x = torch.cat(xs, dim=1)
-        else:
-            raise RuntimeError
-
+        x = self.main(x)
+        xs = [m(x) for m in self.custom]
+        x = torch.cat(xs, dim=1)
         return x
 
 
