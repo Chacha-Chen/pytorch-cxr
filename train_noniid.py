@@ -50,15 +50,16 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         self.local_rank = 0
         self.rank = 0
 
-        stanford_train_set = CxrDataset(STANFORD_CXR_BASE, "train.csv", num_labels=14, mode="per_study")
-        stanford_test_set = CxrDataset(STANFORD_CXR_BASE, "valid.csv", num_labels=14, mode="per_study")
+        mode = "per_study"
+        stanford_train_set = CxrDataset(STANFORD_CXR_BASE, "train.csv", num_labels=14, mode=mode)
+        stanford_test_set = CxrDataset(STANFORD_CXR_BASE, "valid.csv", num_labels=14, mode=mode)
         stanford_set = CxrConcatDataset([stanford_train_set, stanford_test_set])
 
-        mimic_train_set = CxrDataset(MIMIC_CXR_BASE, "train.csv", num_labels=14, mode="per_study")
-        mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", num_labels=14, mode="per_study")
+        mimic_train_set = CxrDataset(MIMIC_CXR_BASE, "train.csv", num_labels=14, mode=mode)
+        mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", num_labels=14, mode=mode)
         mimic_set = CxrConcatDataset([mimic_train_set, mimic_test_set])
 
-        nih_set = CxrDataset(NIH_CXR_BASE, "Data_Entry_2017.csv", num_labels=15, mode="per_study")
+        nih_set = CxrDataset(NIH_CXR_BASE, "Data_Entry_2017.csv", num_labels=15, mode=mode)
 
         set_splits = [20000, 10000]
 
@@ -80,7 +81,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         #img, tar = datasets[0]
         #plt.imshow(img.squeeze(), cmap='gray')
 
-        super().__init__(out_dim=self.out_dim, device=self.device)
+        super().__init__(out_dim=self.out_dim, device=self.device, mode=mode)
 
         self.optimizer = AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-2)
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
