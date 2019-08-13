@@ -118,7 +118,10 @@ class Network(nn.Module):
         #self.main.fc = nn.Linear(self.main.fc.in_features, out_dim)
         num_fc_neurons = 512
         self.main = tvm.densenet121(pretrained=False, drop_rate=0.5, num_classes=num_fc_neurons)
-        self.main.features.conv0 = nn.Conv2d(20, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        if mode == "per_study":
+            self.main.features.conv0 = nn.Conv2d(20, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        else:
+            self.main.features.conv0 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.mode = mode
 
         self.custom = nn.ModuleList([
@@ -148,18 +151,9 @@ class Network(nn.Module):
                                             find_unused_parameters=True)
 
     def forward(self, x):
-        if self.mode == "per_image":
-            x = self.stn(x)
-            x = self.winopt(x)
-            x = x.repeat(1, 3, 1, 1)
-            x = self.main(x)
-        elif self.mode == "per_study":
-            x = self.main(x)
-            xs = [m(x) for m in self.custom]
-            x = torch.cat(xs, dim=1)
-        else:
-            raise RuntimeError
-
+        x = self.main(x)
+        xs = [m(x) for m in self.custom]
+        x = torch.cat(xs, dim=1)
         return x
 
 

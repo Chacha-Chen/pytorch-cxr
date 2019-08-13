@@ -11,9 +11,9 @@ from model import Network
 
 class PredictEnvironment:
 
-    def __init__(self, out_dim, device, model_file=None):
+    def __init__(self, out_dim, device, mode="per_study", model_file=None):
         self.device = device
-        self.model = Network(out_dim, mode="per_study").to(self.device)
+        self.model = Network(out_dim, mode=mode).to(self.device)
         self.thresholds = np.zeros(out_dim)
         if model_file is not None:
             self.load_model(model_file)
