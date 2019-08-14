@@ -21,7 +21,7 @@ MIMIC_CXR_BASE = CXR_BASE.joinpath("mimic/v1").resolve()
 NIH_CXR_BASE = CXR_BASE.joinpath("nih/v1").resolve()
 
 MODES = ["per_image", "per_study"]
-MIN = 256
+MIN = 320
 
 def _load_manifest(file_path, num_labels=14, mode="per_study"):
     assert mode in MODES
@@ -60,7 +60,7 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
 
 cxr_train_transforms = tfms.Compose([
     tfms.ToPILImage(),
-    tfms.ColorJitter(),
+    #tfms.ColorJitter(),
     tfms.Resize(MIN+10, Image.LANCZOS),
     #tfms.RandomRotation((-10, 10)),
     tfms.RandomCrop((MIN, MIN)),
@@ -202,6 +202,8 @@ def cxr_random_split(dataset, lengths):
     return [CxrSubset(dataset, indices[offset - length:offset]) for offset, length in zip(_accumulate(lengths), lengths)]
 
 
+MIN_RES = 512
+
 def copy_stanford_dataset(src_path):
     for m in [src_path.joinpath("train.csv"), src_path.joinpath("valid.csv")]:
         print(f">>> processing {m}...")
@@ -211,7 +213,7 @@ def copy_stanford_dataset(src_path):
             ff = src_path.joinpath(f).resolve()
             img = Image.open(ff)
             w, h = img.size
-            rs = (MIN, int(h/w*MIN)) if w < h else (int(w/h*MIN), MIN)
+            rs = (MIN_RES, int(h/w*MIN_RES)) if w < h else (int(w/h*MIN_RES), MIN_RES)
             resized = img.resize(rs, Image.LANCZOS)
             r = ff.relative_to(src_path)
             t = STANFORD_CXR_BASE.joinpath(r).resolve()
@@ -233,7 +235,7 @@ def copy_mimic_dataset(src_path):
             ff = src_path.joinpath(f).resolve()
             img = Image.open(ff)
             w, h = img.size
-            rs = (MIN, int(h/w*MIN)) if w < h else (int(w/h*MIN), MIN)
+            rs = (MIN_RES, int(h/w*MIN_RES)) if w < h else (int(w/h*MIN_RES), MIN_RES)
             resized = img.resize(rs, Image.LANCZOS)
             r = ff.relative_to(src_path)
             t = MIMIC_CXR_BASE.joinpath(r).resolve()
@@ -261,7 +263,7 @@ def copy_nih_dataset(src_path):
         ff = files_list[f]
         img = Image.open(ff)
         w, h = img.size
-        rs = (MIN, int(h/w*MIN)) if w < h else (int(w/h*MIN), MIN)
+        rs = (MIN_RES, int(h/w*MIN_RES)) if w < h else (int(w/h*MIN_RES), MIN_RES)
         resized = img.resize(rs, Image.LANCZOS).convert('L')
         r = ff.relative_to(src_path)
         t = NIH_CXR_BASE.joinpath(r).resolve()
