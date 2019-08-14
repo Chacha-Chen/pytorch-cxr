@@ -32,6 +32,9 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
     logger.debug(f"loading dataset manifest {file_path} ...")
     df = pd.read_csv(str(file_path)).fillna(0)
     #df = df.loc[df['AP/PA'] == 'PA']
+    if mode == "per_image":
+        df = df[(df['Frontal/Lateral'] == 'Frontal') & (df['AP/PA'] == 'PA')]
+        print(df.head)
     LABELS = df.columns[-num_labels:].values.tolist()
     if LABELS[0] != "No Finding":
         idx = LABELS.index("No Finding")
@@ -108,7 +111,7 @@ class CxrDataset(Dataset):
     def __getitem__(self, index):
 
         def get_entries(index):
-            df = self.entries.loc[index]
+            df = self.entries.iloc[index]
             paths = [self.base_path.joinpath(x).resolve() for x in df[0].split(',')]
             label = df[1:].tolist()
             return paths, label

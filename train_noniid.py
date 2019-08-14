@@ -50,22 +50,22 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         self.local_rank = 0
         self.rank = 0
 
-        mode = "per_study"
+        mode = "per_image"
         stanford_train_set = CxrDataset(STANFORD_CXR_BASE, "train.csv", num_labels=14, mode=mode)
         stanford_test_set = CxrDataset(STANFORD_CXR_BASE, "valid.csv", num_labels=14, mode=mode)
         stanford_set = CxrConcatDataset([stanford_train_set, stanford_test_set])
 
-        mimic_train_set = CxrDataset(MIMIC_CXR_BASE, "train.csv", num_labels=14, mode=mode)
-        mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", num_labels=14, mode=mode)
-        mimic_set = CxrConcatDataset([mimic_train_set, mimic_test_set])
+        #mimic_train_set = CxrDataset(MIMIC_CXR_BASE, "train.csv", num_labels=14, mode=mode)
+        #mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", num_labels=14, mode=mode)
+        #mimic_set = CxrConcatDataset([mimic_train_set, mimic_test_set])
 
-        nih_set = CxrDataset(NIH_CXR_BASE, "Data_Entry_2017.csv", num_labels=15, mode=mode)
+        #nih_set = CxrDataset(NIH_CXR_BASE, "Data_Entry_2017.csv", num_labels=15, mode=mode)
 
-        set_splits = [20000, 10000]
+        set_splits = [20000, 9453]
 
         self.stanford_datasets = cxr_random_split(stanford_set, set_splits)
-        self.mimic_datasets = cxr_random_split(mimic_set, set_splits)
-        self.nih_datasets = cxr_random_split(nih_set, set_splits)
+        #self.mimic_datasets = cxr_random_split(mimic_set, set_splits)
+        #self.nih_datasets = cxr_random_split(nih_set, set_splits)
 
         if train_data == "stanford":
             self.set_data_loader(self.stanford_datasets, None, 32, 8)
