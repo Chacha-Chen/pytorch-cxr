@@ -31,14 +31,13 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
 
     logger.debug(f"loading dataset manifest {file_path} ...")
     df = pd.read_csv(str(file_path)).fillna(0)
-    #df = df.loc[df['AP/PA'] == 'PA']
-    if mode == "per_image":
-        df = df[(df['Frontal/Lateral'] == 'Frontal') & (df['AP/PA'] == 'PA')]
-        print(df.head)
-    LABELS = df.columns[-num_labels:].values.tolist()
-    if LABELS[0] != "No Finding":
-        idx = LABELS.index("No Finding")
-        LABELS[0], LABELS[idx] = LABELS[idx], LABELS[0]
+    #if mode == "per_image":
+    #    df = df[(df['Frontal/Lateral'] == 'Frontal') & (df['AP/PA'] == 'PA')]
+    #LABELS = df.columns[-num_labels:].values.tolist()
+    LABELS = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
+    #if LABELS[0] != "No Finding":
+    #    idx = LABELS.index("No Finding")
+    #    LABELS[0], LABELS[idx] = LABELS[idx], LABELS[0]
     paths = df[df.columns[0]]
     labels = df[LABELS].astype(int).replace(-1, 1)  # substitute uncertainty to positive
     df_tmp = pd.concat([paths, labels], axis=1)
