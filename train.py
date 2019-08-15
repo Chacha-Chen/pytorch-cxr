@@ -62,15 +62,17 @@ class TrainEnvironment(PredictEnvironment):
         stanford_train_set = CxrDataset(STANFORD_CXR_BASE, "train.csv", mode=mode)
         stanford_test_set = CxrDataset(STANFORD_CXR_BASE, "valid.csv", mode=mode)
 
-        mimic_train_set = CxrDataset(MIMIC_CXR_BASE, "train.csv", mode=mode)
-        mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", mode=mode)
+        #mimic_train_set = CxrDataset(MIMIC_CXR_BASE, "train.csv", mode=mode)
+        #mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", mode=mode)
 
-        concat_set = CxrConcatDataset([stanford_train_set, stanford_test_set, mimic_train_set, mimic_test_set])
+        #concat_set = CxrConcatDataset([stanford_train_set, stanford_test_set, mimic_train_set, mimic_test_set])
 
         #datasets = cxr_random_split(concat_set, [360000, 15000])
-        datasets = cxr_random_split(concat_set, [400, 200])
+        #datasets = cxr_random_split(concat_set, [400, 200])
         #subset = Subset(concat_set, range(0, 36))
         #datasets = random_split(subset, [len(subset) - 12, 12])
+
+        datasets = [stanford_train_set, stanford_test_set]
 
         pin_memory = True if self.device.type == 'cuda' else False
         self.train_loader = DataLoader(datasets[0], batch_size=16, num_workers=8, shuffle=True, pin_memory=pin_memory)
@@ -87,7 +89,8 @@ class TrainEnvironment(PredictEnvironment):
 
         self.optimizer = AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-2)
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
