@@ -1,6 +1,7 @@
 import sys
 import bisect
 from pathlib import Path
+import pickle
 
 import numpy as np
 import imageio
@@ -89,7 +90,9 @@ def fetch_image(img_path):
     image = client.get(str(img_path))
     if image is None:
         image = imageio.imread(img_path)
-        client.set(str(img_path), image)
+        client.set(str(img_path), pickle.dumps(image))
+    else:
+        image = pickle.loads(image)
     return image
 
 
