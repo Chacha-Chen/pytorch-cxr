@@ -7,6 +7,7 @@ import imageio
 import pandas as pd
 from tqdm import tqdm
 from PIL import Image
+from pymemcache.client import base
 
 import torch
 from torch.utils.data import Dataset, ConcatDataset, Subset
@@ -82,8 +83,18 @@ cxr_test_transforms = tfms.Compose([
 ])
 
 
+client = base.Client(('localhost', 11211))
+
+def fetch_image(img_path):
+    image = client.get(str(img_path))
+    if image is None:
+        image = imageio.imread(img_path)
+        client.set(str(img_path), image)
+    return image
+
+
 def get_image(img_path, transforms):
-    image = imageio.imread(img_path)
+    image = fetch_image(img_path)
     image_tensor = transforms(image)
     return image_tensor
 
@@ -96,7 +107,7 @@ def get_study(img_paths, orients, transforms):
     def make_group(max_chs, img_paths):
         image_tensor = torch.zeros(max_chs, MIN, MIN)
         for i, img_path in enumerate(img_paths):
-            image = imageio.imread(img_path)
+            image = fetch_image(img_path)
             image_tensor[i, :, :] = transforms(image)
         if transforms == cxr_train_transforms:
             image_tensor = image_tensor[torch.randperm(max_chs), :, :]

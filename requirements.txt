@@ -19,3 +19,4 @@ pyyaml
 slackclient
 tb-nightly
 gitpython
+pymemcache
