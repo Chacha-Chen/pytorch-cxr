@@ -459,7 +459,7 @@ def initialize(args):
     print_versions()
     run_mode = "distributed" if distributed else "single"
     logger.info(f"runtime node: {get_ip()} ({run_mode}, rank: {rank}, local_rank: {local_rank})")
-    logger.info(f"runtime commit: {get_commit()}")
+    logger.info(f"runtime commit: {get_commit(args.ignore_repo_dirty)}")
     logger.info(f"runtime path: {runtime_path}")
 
     # for fixed random indices
@@ -484,6 +484,7 @@ if __name__ == "__main__":
     parser.add_argument('--tensorboard', default=False, action='store_true', help="true if logging to tensorboard")
     parser.add_argument('--slack', default=False, action='store_true', help="true if logging to slack")
     parser.add_argument('--local_rank', default=None, type=int, help="this is for the use of torch.distributed.launch utility")
+    parser.add_argument('--ignore-repo-dirty', default=False, action='store_true', help="not checking the repo clean")
     args = parser.parse_args()
 
     distributed, runtime_path, device = initialize(args)

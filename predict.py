@@ -21,9 +21,12 @@ class PredictEnvironment:
     def load_model(self, filename):
         filepath = Path(filename).resolve()
         logger.debug(f"loading the model from {filepath}")
-        pkg = torch.load(filepath, map_location=self.device)
-        state = pkg['state']
-        self.thresholds = pkg['thresholds']
+        try:
+            pkg = torch.load(filepath, map_location=self.device)
+            state = pkg['state']
+            self.thresholds = pkg['thresholds']
+        except:
+            state = torch.load(filepath, map_location=self.device)
 
         try:
             self.model.load_state_dict(state, strict=True)

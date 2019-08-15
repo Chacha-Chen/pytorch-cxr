@@ -129,10 +129,14 @@ def get_ip():
         s.close()
     return IP
 
-def get_commit():
+def get_commit(ignore=False):
     import git
     repo = git.Repo(search_parent_directories=True)
-    assert not repo.is_dirty(), "current repository has some changes. please make a commit to run"
+    if ignore:
+        logger.info("git repo dirty check ignored")
+    else:
+        assert not repo.is_dirty(), "current repository has some changes. please make a commit to run"
+
 
     try:
         branch = repo.head.ref.name

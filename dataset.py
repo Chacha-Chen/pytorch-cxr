@@ -22,6 +22,7 @@ NIH_CXR_BASE = CXR_BASE.joinpath("nih/v1").resolve()
 
 MODES = ["per_image", "per_study"]
 MIN = 320
+MAX_CHS = 20
 
 def _load_manifest(file_path, num_labels=14, mode="per_study"):
     assert mode in MODES
@@ -39,8 +40,9 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
     #    idx = LABELS.index("No Finding")
     #    LABELS[0], LABELS[idx] = LABELS[idx], LABELS[0]
     paths = df[df.columns[0]]
+    orients = df['Frontal/Lateral'].replace({'Frontal': 0, 'Lateral': 1})
     labels = df[LABELS].astype(int).replace(-1, 1)  # substitute uncertainty to positive
-    df_tmp = pd.concat([paths, labels], axis=1)
+    df_tmp = pd.concat([paths, orients, labels], axis=1)
     if mode == "per_image":
         entries = df_tmp
     elif mode == "per_study":
@@ -48,6 +50,7 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
         df_tmp['study'] = [Path(x).parent for x in df_tmp[df_tmp.columns[0]]]
         df_tmp.set_index(['study'], inplace=True)
         aggs = { df_tmp.columns[0]: lambda x: ','.join(x.astype(str)) }
+        aggs.update({ df_tmp.columns[1]: lambda x: ','.join(x.astype(str)) })
         aggs.update({ x: 'mean' for x in LABELS })
         df_tmp = df_tmp.groupby(['study']).agg(aggs).reset_index(0, drop=True)
         entries = df_tmp
@@ -85,14 +88,22 @@ def get_image(img_path, transforms):
     return image_tensor
 
 
-def get_study(img_paths, transforms):
-    max_imgs = 20
-    image_tensor = torch.zeros(max_imgs, MIN, MIN)
-    for i, img_path in enumerate(img_paths):
-        image = imageio.imread(img_path)
-        image_tensor[i, :, :] = transforms(image)
-    if transforms == cxr_train_transforms:
-        image_tensor = image_tensor[torch.randperm(max_imgs), :, :]
+def get_study(img_paths, orients, transforms):
+    restruct = [[], []]
+    for img_path, orient in zip(img_paths, orients):
+        restruct[orient].append(img_path)
+
+    def make_group(max_chs, img_paths):
+        image_tensor = torch.zeros(max_chs, MIN, MIN)
+        for i, img_path in enumerate(img_paths):
+            image = imageio.imread(img_path)
+            image_tensor[i, :, :] = transforms(image)
+        if transforms == cxr_train_transforms:
+            image_tensor = image_tensor[torch.randperm(max_chs), :, :]
+        return image_tensor
+
+    tensors = [make_group(int(MAX_CHS / 2), x) for x in restruct]
+    image_tensor = torch.cat(tensors, dim=0)
     return image_tensor
 
 
@@ -112,16 +123,17 @@ class CxrDataset(Dataset):
         def get_entries(index):
             df = self.entries.iloc[index]
             paths = [self.base_path.joinpath(x).resolve() for x in df[0].split(',')]
-            label = df[1:].tolist()
-            return paths, label
+            orients = [int(x) for x in df[1].split(',')]
+            label = df[2:].tolist()
+            return paths, orients, label
 
         if self.mode == "per_image":
-            img_path, label = get_entries(index)
-            image_tensor = get_image(img_path[0], CxrDataset.transforms)
+            img_paths, orients, label = get_entries(index)
+            image_tensor = get_image(img_paths[0], CxrDataset.transforms)
             target_tensor = torch.FloatTensor(label)
         elif self.mode == "per_study":
-            img_paths, label = get_entries(index)
-            image_tensor = get_study(img_paths, CxrDataset.transforms)
+            img_paths, orients, label = get_entries(index)
+            image_tensor = get_study(img_paths, orients, CxrDataset.transforms)
             target_tensor = torch.FloatTensor(label)
         else:
             raise RuntimeError
@@ -139,7 +151,7 @@ class CxrDataset(Dataset):
 
     @property
     def labels(self):
-        return self.entries.columns[1:].values.tolist()
+        return self.entries.columns[2:].values.tolist()
 
     @staticmethod
     def train():
