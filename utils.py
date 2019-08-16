@@ -97,6 +97,7 @@ class MyLogger(logging.Logger):
 logging.setLoggerClass(MyLogger)
 logger = logging.getLogger("pytorch-cxr")
 logger.setLevel(logging.DEBUG)
+logger.propagate = False
 
 
 def print_versions():
@@ -134,7 +135,7 @@ def get_commit(ignore=False):
     import git
     repo = git.Repo(search_parent_directories=True)
     if ignore:
-        logger.info("git repo dirty check ignored")
+        logger.warning("git repo dirty check ignored")
     else:
         assert not repo.is_dirty(), "current repository has some changes. please make a commit to run"
 

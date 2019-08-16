@@ -62,10 +62,11 @@ class TrainEnvironment(PredictEnvironment):
         stanford_train_set = CxrDataset(STANFORD_CXR_BASE, "train.csv", mode=mode)
         stanford_test_set = CxrDataset(STANFORD_CXR_BASE, "valid.csv", mode=mode)
 
-        mimic_train_set = CxrDataset(MIMIC_CXR_BASE, "train.csv", mode=mode)
-        mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", mode=mode)
+        #mimic_train_set = CxrDataset(MIMIC_CXR_BASE, "train.csv", mode=mode)
+        #mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", mode=mode)
 
-        concat_set = CxrConcatDataset([stanford_train_set, stanford_test_set, mimic_train_set, mimic_test_set])
+        #concat_set = CxrConcatDataset([stanford_train_set, stanford_test_set, mimic_train_set, mimic_test_set])
+        concat_set = CxrConcatDataset([stanford_train_set, stanford_test_set])
 
         #datasets = cxr_random_split(concat_set, [360000, 15000])
         datasets = cxr_random_split(concat_set, [400, 200])
@@ -126,11 +127,11 @@ class DistributedTrainEnvironment(TrainEnvironment):
                                        num_workers=self.train_loader.num_workers,
                                        sampler=DistributedSampler(self.train_loader.dataset),
                                        shuffle=False, pin_memory=pin_memory)
-        self.test_loader = DataLoader(self.test_loader.dataset,
-                                      batch_size=self.test_loader.batch_size,
-                                      num_workers=self.test_loader.num_workers,
-                                      sampler=DistributedSampler(self.test_loader.dataset),
-                                      shuffle=False, pin_memory=pin_memory)
+        #self.test_loader = DataLoader(self.test_loader.dataset,
+        #                              batch_size=self.test_loader.batch_size,
+        #                              num_workers=self.test_loader.num_workers,
+        #                              sampler=DistributedSampler(self.test_loader.dataset),
+        #                              shuffle=False, pin_memory=pin_memory)
 
 
 class Trainer:
