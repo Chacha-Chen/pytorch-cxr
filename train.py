@@ -129,11 +129,11 @@ class DistributedTrainEnvironment(TrainEnvironment):
                                        num_workers=self.train_loader.num_workers,
                                        sampler=DistributedSampler(self.train_loader.dataset),
                                        shuffle=False, pin_memory=pin_memory)
-        self.test_loader = DataLoader(self.test_loader.dataset,
-                                      batch_size=self.test_loader.batch_size,
-                                      num_workers=self.test_loader.num_workers,
-                                      sampler=DistributedSampler(self.test_loader.dataset),
-                                      shuffle=False, pin_memory=pin_memory)
+        #self.test_loader = DataLoader(self.test_loader.dataset,
+        #                              batch_size=self.test_loader.batch_size,
+        #                              num_workers=self.test_loader.num_workers,
+        #                              sampler=DistributedSampler(self.test_loader.dataset),
+        #                              shuffle=False, pin_memory=pin_memory)
 
 
 class Trainer:
