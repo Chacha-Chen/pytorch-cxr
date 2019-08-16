@@ -72,6 +72,7 @@ cxr_train_transforms = tfms.Compose([
     #tfms.RandomHorizontalFlip(),
     #tfms.RandomVerticalFlip(),
     tfms.ToTensor(),
+    tfms.Normalize((0.4,), (0.2,))
     #tfms.Normalize((0.1307,), (0.3081,))
 ])
 
@@ -80,6 +81,7 @@ cxr_test_transforms = tfms.Compose([
     tfms.Resize(MIN, Image.LANCZOS),
     tfms.CenterCrop(MIN),
     tfms.ToTensor(),
+    tfms.Normalize((0.4,), (0.2,))
     #tfms.Normalize((0.1307,), (0.3081,))
 ])
 
