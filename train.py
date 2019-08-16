@@ -66,6 +66,7 @@ class TrainEnvironment(PredictEnvironment):
         #mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", mode=mode)
 
         #concat_set = CxrConcatDataset([stanford_train_set, stanford_test_set, mimic_train_set, mimic_test_set])
+        #concat_set = CxrConcatDataset([stanford_train_set, stanford_test_set])
 
         #datasets = cxr_random_split(concat_set, [360000, 15000])
         #datasets = cxr_random_split(concat_set, [400, 200])
@@ -453,7 +454,7 @@ def initialize(args):
     logger.set_rank(rank)
 
     log_file = f"train.{rank}.log"
-    logger.set_log_to_stream()
+    #logger.set_log_to_stream()
     logger.set_log_to_file(runtime_path.joinpath(log_file))
     if args.slack:
         logger.set_log_to_slack(Path(__file__).parent.joinpath(".slack"), runtime_path.name)

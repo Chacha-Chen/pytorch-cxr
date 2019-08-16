@@ -72,6 +72,7 @@ cxr_train_transforms = tfms.Compose([
     #tfms.RandomHorizontalFlip(),
     #tfms.RandomVerticalFlip(),
     tfms.ToTensor(),
+    tfms.Normalize((0.4,), (0.2,))
     #tfms.Normalize((0.1307,), (0.3081,))
 ])
 
@@ -80,6 +81,7 @@ cxr_test_transforms = tfms.Compose([
     tfms.Resize(MIN, Image.LANCZOS),
     tfms.CenterCrop(MIN),
     tfms.ToTensor(),
+    tfms.Normalize((0.4,), (0.2,))
     #tfms.Normalize((0.1307,), (0.3081,))
 ])
 
@@ -101,7 +103,7 @@ def get_image(img_path, transforms):
     image_tensor = transforms(image)
     return image_tensor
 
-
+"""
 def get_study(img_paths, orients, transforms):
     restruct = [[], []]
     for img_path, orient in zip(img_paths, orients):
@@ -118,6 +120,15 @@ def get_study(img_paths, orients, transforms):
 
     tensors = [make_group(int(MAX_CHS / 2), x) for x in restruct]
     image_tensor = torch.cat(tensors, dim=0)
+    return image_tensor
+"""
+def get_study(img_paths, orients, transforms):
+    image_tensor = torch.zeros(MAX_CHS, MIN, MIN)
+    for i, img_path in enumerate(img_paths):
+        image = fetch_image(img_path)
+        image_tensor[i, :, :] = transforms(image)
+    if transforms == cxr_train_transforms:
+        image_tensor = image_tensor[torch.randperm(MAX_CHS), :, :]
     return image_tensor
 
 
@@ -230,51 +241,55 @@ def cxr_random_split(dataset, lengths):
 
 MIN_RES = 512
 
-def copy_stanford_dataset(src_path):
+def copy_stanford_dataset(src_path, image_process=True):
     for m in [src_path.joinpath("train.csv"), src_path.joinpath("valid.csv")]:
         print(f">>> processing {m}...")
         df = pd.read_csv(str(m))
         for i in tqdm(range(len(df)), total=len(df), dynamic_ncols=True):
             f = df.iloc[i]["Path"].split('/', 1)[1]
             ff = src_path.joinpath(f).resolve()
-            img = Image.open(ff)
-            w, h = img.size
-            rs = (MIN_RES, int(h/w*MIN_RES)) if w < h else (int(w/h*MIN_RES), MIN_RES)
-            resized = img.resize(rs, Image.LANCZOS)
+            if image_process:
+                img = Image.open(ff)
+                w, h = img.size
+                rs = (MIN_RES, int(h/w*MIN_RES)) if w < h else (int(w/h*MIN_RES), MIN_RES)
+                resized = img.resize(rs, Image.LANCZOS)
             r = ff.relative_to(src_path)
             t = STANFORD_CXR_BASE.joinpath(r).resolve()
             #print(f"{ff} -> {t}")
-            Path.mkdir(t.parent, parents=True, exist_ok=True)
-            resized.save(t, "JPEG")
+            if image_process:
+                Path.mkdir(t.parent, parents=True, exist_ok=True)
+                resized.save(t, "JPEG")
             df.at[i, "Path"] = f
         r = m.relative_to(src_path).name
         t = STANFORD_CXR_BASE.joinpath(r).resolve()
         df.to_csv(t, float_format="%.0f", index=False)
 
 
-def copy_mimic_dataset(src_path):
+def copy_mimic_dataset(src_path, image_process=True):
     for m in [src_path.joinpath("train.csv"), src_path.joinpath("valid.csv")]:
         print(f">>> processing {m}...")
         df = pd.read_csv(str(m))
         for i in tqdm(range(len(df)), total=len(df), dynamic_ncols=True):
             f = df.iloc[i]["path"]
             ff = src_path.joinpath(f).resolve()
-            img = Image.open(ff)
-            w, h = img.size
-            rs = (MIN_RES, int(h/w*MIN_RES)) if w < h else (int(w/h*MIN_RES), MIN_RES)
-            resized = img.resize(rs, Image.LANCZOS)
+            if image_process:
+                img = Image.open(ff)
+                w, h = img.size
+                rs = (MIN_RES, int(h/w*MIN_RES)) if w < h else (int(w/h*MIN_RES), MIN_RES)
+                resized = img.resize(rs, Image.LANCZOS)
             r = ff.relative_to(src_path)
             t = MIMIC_CXR_BASE.joinpath(r).resolve()
             #print(f"{ff} -> {t}")
-            Path.mkdir(t.parent, parents=True, exist_ok=True)
-            resized.save(t, "JPEG")
+            if image_process:
+                Path.mkdir(t.parent, parents=True, exist_ok=True)
+                resized.save(t, "JPEG")
         df.rename(columns={"Airspace Opacity": "Lung Opacity"}) # to match stanford's label
         r = m.relative_to(src_path).name
         t = MIMIC_CXR_BASE.joinpath(r).resolve()
         df.to_csv(t, float_format="%.0f", index=False)
 
 
-def copy_nih_dataset(src_path):
+def copy_nih_dataset(src_path, image_process=True):
     manifest_file = src_path.joinpath("Data_Entry_2017.csv")
     print(f">>> processing {manifest_file}...")
     df = pd.read_csv(str(manifest_file))
@@ -287,18 +302,20 @@ def copy_nih_dataset(src_path):
         patient = row["Patient ID"]
         study = row["Follow-up #"]
         ff = files_list[f]
-        img = Image.open(ff)
-        w, h = img.size
-        rs = (MIN_RES, int(h/w*MIN_RES)) if w < h else (int(w/h*MIN_RES), MIN_RES)
-        resized = img.resize(rs, Image.LANCZOS).convert('L')
+        if image_process:
+            img = Image.open(ff)
+            w, h = img.size
+            rs = (MIN_RES, int(h/w*MIN_RES)) if w < h else (int(w/h*MIN_RES), MIN_RES)
+            resized = img.resize(rs, Image.LANCZOS).convert('L')
         r = ff.relative_to(src_path)
         t = NIH_CXR_BASE.joinpath(r).resolve()
         basename, filename = t.parent, t.name
         t = basename.joinpath(f"patient{patient:05d}", f"study{study:03d}", filename)
         t = Path(str(t).replace('.png', '.jpg'))
         #print(f"{ff} -> {t}")
-        Path.mkdir(t.parent, parents=True, exist_ok=True)
-        resized.save(t, "JPEG")
+        if image_process:
+            Path.mkdir(t.parent, parents=True, exist_ok=True)
+            resized.save(t, "JPEG")
         df_tmp = pd.DataFrame()
         df_tmp["path"] = [t.relative_to(NIH_CXR_BASE)]
         for l in row["Finding Labels"].split('|'):
