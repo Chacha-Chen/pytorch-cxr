@@ -101,7 +101,7 @@ def get_image(img_path, transforms):
     image_tensor = transforms(image)
     return image_tensor
 
-
+"""
 def get_study(img_paths, orients, transforms):
     restruct = [[], []]
     for img_path, orient in zip(img_paths, orients):
@@ -118,6 +118,15 @@ def get_study(img_paths, orients, transforms):
 
     tensors = [make_group(int(MAX_CHS / 2), x) for x in restruct]
     image_tensor = torch.cat(tensors, dim=0)
+    return image_tensor
+"""
+def get_study(img_paths, orients, transforms):
+    image_tensor = torch.zeros(MAX_CHS, MIN, MIN)
+    for i, img_path in enumerate(img_paths):
+        image = fetch_image(img_path)
+        image_tensor[i, :, :] = transforms(image)
+    if transforms == cxr_train_transforms:
+        image_tensor = image_tensor[torch.randperm(MAX_CHS), :, :]
     return image_tensor
 
 
