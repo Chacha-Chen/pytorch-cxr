@@ -450,7 +450,7 @@ def initialize(args):
     logger.set_rank(rank)
 
     log_file = f"train.{rank}.log"
-    logger.set_log_to_stream()
+    #logger.set_log_to_stream()
     logger.set_log_to_file(runtime_path.joinpath(log_file))
     if args.slack:
         logger.set_log_to_slack(Path(__file__).parent.joinpath(".slack"), runtime_path.name)
