@@ -24,7 +24,7 @@ NIH_CXR_BASE = CXR_BASE.joinpath("nih/v1").resolve()
 
 MODES = ["per_image", "per_study"]
 MIN = 320
-MAX_CHS = 3
+MAX_CHS = 20
 
 def _load_manifest(file_path, num_labels=14, mode="per_study"):
     assert mode in MODES
