@@ -125,7 +125,7 @@ def get_study(img_paths, orients, transforms):
     return image_tensor
 """
 def get_study(img_paths, orients, transforms):
-    image_tensor = MEAN * torch.ones(MAX_CHS, MIN, MIN)
+    image_tensor = torch.randn(MAX_CHS, MIN, MIN) * STDEV + MEAN
     for i, img_path in enumerate(img_paths):
         image = fetch_image(img_path)
         image_tensor[i, :, :] = transforms(image)
