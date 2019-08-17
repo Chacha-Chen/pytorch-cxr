@@ -62,6 +62,8 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
     logger.debug(f"{len(entries)} entries are loaded.")
     return entries
 
+MEAN = 0.4
+STDEV = 0.2
 
 cxr_train_transforms = tfms.Compose([
     tfms.ToPILImage(),
@@ -72,7 +74,7 @@ cxr_train_transforms = tfms.Compose([
     #tfms.RandomHorizontalFlip(),
     #tfms.RandomVerticalFlip(),
     tfms.ToTensor(),
-    tfms.Normalize((0.4,), (0.2,))
+    tfms.Normalize((MEAN,), (STDEV,))
     #tfms.Normalize((0.1307,), (0.3081,))
 ])
 
@@ -81,7 +83,7 @@ cxr_test_transforms = tfms.Compose([
     tfms.Resize(MIN, Image.LANCZOS),
     tfms.CenterCrop(MIN),
     tfms.ToTensor(),
-    tfms.Normalize((0.4,), (0.2,))
+    tfms.Normalize((MEAN,), (STDEV,))
     #tfms.Normalize((0.1307,), (0.3081,))
 ])
 
@@ -123,7 +125,7 @@ def get_study(img_paths, orients, transforms):
     return image_tensor
 """
 def get_study(img_paths, orients, transforms):
-    image_tensor = torch.zeros(MAX_CHS, MIN, MIN)
+    image_tensor = MEAN * torch.ones(MAX_CHS, MIN, MIN)
     for i, img_path in enumerate(img_paths):
         image = fetch_image(img_path)
         image_tensor[i, :, :] = transforms(image)
