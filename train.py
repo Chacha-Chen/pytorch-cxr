@@ -28,7 +28,7 @@ from apex import amp
 from utils import logger, print_versions, get_devices, get_ip, get_commit
 from adamw import AdamW
 from predict import PredictEnvironment, Predictor
-from dataset import STANFORD_CXR_BASE, MIMIC_CXR_BASE, CxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
+from dataset import STANFORD_CXR_BASE, MIMIC_CXR_BASE, NIH_CXR_BASE, CxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
 
 
 def check_distributed(args):
