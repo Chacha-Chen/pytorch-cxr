@@ -1,20 +1,23 @@
 import sys
 import bisect
 from pathlib import Path
-import pickle
 
 import numpy as np
 import imageio
 import pandas as pd
 from tqdm import tqdm
 from PIL import Image
-from pymemcache.client import base
+import bmemcached as bmc
 
 import torch
 from torch.utils.data import Dataset, ConcatDataset, Subset
 import torchvision.transforms as tfms
 
 from utils import logger
+
+
+pd.set_option('mode.chained_assignment', None)
+
 
 #CXR_BASE = Path("/mnt/hdd/cxr").resolve()
 CXR_BASE = Path("./data").resolve()
@@ -25,6 +28,7 @@ NIH_CXR_BASE = CXR_BASE.joinpath("nih/v1").resolve()
 MODES = ["per_image", "per_study"]
 MIN = 320
 MAX_CHS = 20
+
 
 def _load_manifest(file_path, num_labels=14, mode="per_study"):
     assert mode in MODES
@@ -42,14 +46,14 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
     #    idx = LABELS.index("No Finding")
     #    LABELS[0], LABELS[idx] = LABELS[idx], LABELS[0]
     paths = df[df.columns[0]]
-    orients = df['Frontal/Lateral'].replace({'Frontal': 0, 'Lateral': 1})
+    orients = df['Frontal/Lateral'].replace({'Frontal': '0', 'Lateral': '1'})
     labels = df[LABELS].astype(int).replace(-1, 1)  # substitute uncertainty to positive
     df_tmp = pd.concat([paths, orients, labels], axis=1)
     if mode == "per_image":
         entries = df_tmp
     elif mode == "per_study":
         logger.debug("grouping by studies ... ")
-        df_tmp['study'] = [Path(x).parent for x in df_tmp[df_tmp.columns[0]]]
+        df_tmp['study'] = df_tmp.apply(lambda x: str(Path(x[0]).parent), axis=1)
         df_tmp.set_index(['study'], inplace=True)
         aggs = { df_tmp.columns[0]: lambda x: ','.join(x.astype(str)) }
         aggs.update({ df_tmp.columns[1]: lambda x: ','.join(x.astype(str)) })
@@ -61,6 +65,7 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
 
     logger.debug(f"{len(entries)} entries are loaded.")
     return entries
+
 
 MEAN = 0.4
 STDEV = 0.2
@@ -88,20 +93,21 @@ cxr_test_transforms = tfms.Compose([
 ])
 
 
-client = base.Client(('localhost', 11211))
+client = bmc.Client(('localhost:11211', ))
 
 def fetch_image(img_path):
     image = client.get(str(img_path))
     if image is None:
-        image = imageio.imread(img_path)
-        client.set(str(img_path), pickle.dumps(image))
-    else:
-        image = pickle.loads(image)
+        image = imageio.imread(img_path, as_gray=True)
+        client.set(str(img_path), image)
     return image
 
 
-def get_image(img_path, transforms):
-    image = fetch_image(img_path)
+def get_image(img_path, transforms, use_memcache=True):
+    if use_memcache:
+        image = fetch_image(img_path)
+    else:
+        image = imageio.imread(img_path, as_gray=True)
     image_tensor = transforms(image)
     return image_tensor
 
@@ -124,10 +130,14 @@ def get_study(img_paths, orients, transforms):
     image_tensor = torch.cat(tensors, dim=0)
     return image_tensor
 """
-def get_study(img_paths, orients, transforms):
+def get_study(img_paths, orients, transforms, use_memcache=True):
     image_tensor = torch.randn(MAX_CHS, MIN, MIN) * STDEV + MEAN
     for i, img_path in enumerate(img_paths):
-        image = fetch_image(img_path)
+        if use_memcache:
+            image = fetch_image(img_path)
+        else:
+            image = imageio.imread(img_path, as_gray=True)
+        imgs = transforms(image)
         image_tensor[i, :, :] = transforms(image)
     if transforms == cxr_train_transforms:
         image_tensor = image_tensor[torch.randperm(MAX_CHS), :, :]
@@ -171,7 +181,7 @@ class CxrDataset(Dataset):
         return len(self.entries)
 
     def get_label_counts(self, indices=None):
-        df = self.entries if indices is None else self.entries.loc[indices]
+        df = self.entries if indices is None else self.entries.iloc[indices]
         counts = [df[x].value_counts() for x in self.labels]
         new_df = pd.concat(counts, axis=1).fillna(0).astype(int)
         return new_df
