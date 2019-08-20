@@ -179,7 +179,7 @@ class CxrDataset(Dataset):
         return len(self.entries)
 
     def get_label_counts(self, indices=None):
-        df = self.entries if indices is None else self.entries.loc[indices]
+        df = self.entries if indices is None else self.entries.iloc[indices]
         counts = [df[x].value_counts() for x in self.labels]
         new_df = pd.concat(counts, axis=1).fillna(0).astype(int)
         return new_df
