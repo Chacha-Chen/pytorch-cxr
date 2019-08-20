@@ -46,7 +46,7 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
     #    idx = LABELS.index("No Finding")
     #    LABELS[0], LABELS[idx] = LABELS[idx], LABELS[0]
     paths = df[df.columns[0]]
-    orients = df['Frontal/Lateral'].replace({'Frontal': 0, 'Lateral': 1})
+    orients = df['Frontal/Lateral'].replace({'Frontal': '0', 'Lateral': '1'})
     labels = df[LABELS].astype(int).replace(-1, 1)  # substitute uncertainty to positive
     df_tmp = pd.concat([paths, orients, labels], axis=1)
     if mode == "per_image":
@@ -181,7 +181,7 @@ class CxrDataset(Dataset):
         return len(self.entries)
 
     def get_label_counts(self, indices=None):
-        df = self.entries if indices is None else self.entries.loc[indices]
+        df = self.entries if indices is None else self.entries.iloc[indices]
         counts = [df[x].value_counts() for x in self.labels]
         new_df = pd.concat(counts, axis=1).fillna(0).astype(int)
         return new_df
