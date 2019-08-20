@@ -73,7 +73,6 @@ class Predictor:
         with torch.no_grad():
             x = x.to(self.env.device)
             output = self.env.model(x)
-            print(output)
         return output
 
 
@@ -117,6 +116,7 @@ if __name__ == "__main__":
     print_versions()
 
     mode = "per_study"
+    LABELS = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
     model_path = Path(args.model).resolve()
     #model_path = Path("train_20190526_per_study/model_epoch_030.pth.tar").resolve()
     env = PredictEnvironment(5, device, mode, model_path=model_path)
@@ -125,10 +125,19 @@ if __name__ == "__main__":
     input_path = Path(args.input_csv).resolve()
     entries = load_manifest(input_path, mode)
     base_path = input_path.parent
+    outputs = { "Study": [], }
+    outputs.update({ k: [] for k in LABELS})
     for i, r in entries.iterrows():
         paths = [base_path.joinpath(x).resolve() for x in r[0].split(',')]
         study_path = paths[0].parent
         out = p.predict(study_path)
         out = torch.sigmoid(out.squeeze())
+        outputs["Study"].append(study_path)
+        for j, l in enumerate(LABELS):
+            outputs[l].append(out[j].cpu().item())
         vec = " ".join([f"{k:.6f}" for k in out.cpu().numpy()])
         logger.info(f"predict {i:03d}: {study_path} {vec}")
+
+    output_df = pd.DataFrame(outputs)
+    print(output_df)
+    output_df.to_csv(args.output_csv, index=False)
