@@ -126,11 +126,11 @@ class DistributedTrainEnvironment(TrainEnvironment):
                                        num_workers=self.train_loader.num_workers,
                                        sampler=DistributedSampler(self.train_loader.dataset),
                                        shuffle=False, pin_memory=pin_memory)
-        self.test_loader = DataLoader(self.test_loader.dataset,
-                                      batch_size=self.test_loader.batch_size,
-                                      num_workers=self.test_loader.num_workers,
-                                      sampler=DistributedSampler(self.test_loader.dataset),
-                                      shuffle=False, pin_memory=pin_memory)
+        #self.test_loader = DataLoader(self.test_loader.dataset,
+        #                              batch_size=self.test_loader.batch_size,
+        #                              num_workers=self.test_loader.num_workers,
+        #                              sampler=DistributedSampler(self.test_loader.dataset),
+        #                              shuffle=False, pin_memory=pin_memory)
 
 
 class Trainer:
@@ -450,7 +450,7 @@ def initialize(args):
     logger.set_rank(rank)
 
     log_file = f"train.{rank}.log"
-    logger.set_log_to_stream()
+    #logger.set_log_to_stream()
     logger.set_log_to_file(runtime_path.joinpath(log_file))
     if args.slack:
         logger.set_log_to_slack(Path(__file__).parent.joinpath(".slack"), runtime_path.name)
@@ -459,7 +459,7 @@ def initialize(args):
     print_versions()
     run_mode = "distributed" if distributed else "single"
     logger.info(f"runtime node: {get_ip()} ({run_mode}, rank: {rank}, local_rank: {local_rank})")
-    logger.info(f"runtime commit: {get_commit()}")
+    logger.info(f"runtime commit: {get_commit(args.ignore_repo_dirty)}")
     logger.info(f"runtime path: {runtime_path}")
 
     # for fixed random indices
@@ -484,6 +484,7 @@ if __name__ == "__main__":
     parser.add_argument('--tensorboard', default=False, action='store_true', help="true if logging to tensorboard")
     parser.add_argument('--slack', default=False, action='store_true', help="true if logging to slack")
     parser.add_argument('--local_rank', default=None, type=int, help="this is for the use of torch.distributed.launch utility")
+    parser.add_argument('--ignore-repo-dirty', default=False, action='store_true', help="not checking the repo clean")
     args = parser.parse_args()
 
     distributed, runtime_path, device = initialize(args)

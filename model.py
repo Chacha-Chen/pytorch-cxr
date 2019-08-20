@@ -7,6 +7,8 @@ from torch.nn.parallel import DistributedDataParallel
 
 import torchvision.models as tvm
 
+from dataset import MAX_CHS
+
 
 class STN(nn.Module):
 
@@ -119,7 +121,7 @@ class Network(nn.Module):
         num_fc_neurons = 512
         self.main = tvm.densenet121(pretrained=False, drop_rate=0.5, num_classes=num_fc_neurons)
         if mode == "per_study":
-            self.main.features.conv0 = nn.Conv2d(20, 64, kernel_size=7, stride=2, padding=3, bias=False)
+            self.main.features.conv0 = nn.Conv2d(MAX_CHS, 64, kernel_size=7, stride=2, padding=3, bias=False)
         else:
             self.main.features.conv0 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.mode = mode

@@ -61,8 +61,9 @@ class MyLogger(logging.Logger):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.addFilter(MyFilter(0))
+        self.addFilter(MyFilter('-'))
         self.formatter = logging.Formatter('%(asctime)s %(rank)s [%(levelname)-5s] %(message)s')
+        self.set_log_to_stream(level=logging.DEBUG)
 
     def set_rank(self, rank):
         self.removeFilter(self.filter)
@@ -96,6 +97,7 @@ class MyLogger(logging.Logger):
 logging.setLoggerClass(MyLogger)
 logger = logging.getLogger("pytorch-cxr")
 logger.setLevel(logging.DEBUG)
+logger.propagate = False
 
 
 def print_versions():
@@ -129,10 +131,14 @@ def get_ip():
         s.close()
     return IP
 
-def get_commit():
+def get_commit(ignore=False):
     import git
     repo = git.Repo(search_parent_directories=True)
-    assert not repo.is_dirty(), "current repository has some changes. please make a commit to run"
+    if ignore:
+        logger.warning("git repo dirty check ignored")
+    else:
+        assert not repo.is_dirty(), "current repository has some changes. please make a commit to run"
+
 
     try:
         branch = repo.head.ref.name

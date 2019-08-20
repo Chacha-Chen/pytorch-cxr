@@ -7,12 +7,17 @@ import imageio
 import pandas as pd
 from tqdm import tqdm
 from PIL import Image
+import bmemcached as bmc
 
 import torch
 from torch.utils.data import Dataset, ConcatDataset, Subset
 import torchvision.transforms as tfms
 
 from utils import logger
+
+
+pd.set_option('mode.chained_assignment', None)
+
 
 #CXR_BASE = Path("/mnt/hdd/cxr").resolve()
 CXR_BASE = Path("./data").resolve()
@@ -22,6 +27,8 @@ NIH_CXR_BASE = CXR_BASE.joinpath("nih/v1").resolve()
 
 MODES = ["per_image", "per_study"]
 MIN = 256
+MAX_CHS = 3
+
 
 def _load_manifest(file_path, num_labels=14, mode="per_study"):
     assert mode in MODES
@@ -32,6 +39,9 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
     logger.debug(f"loading dataset manifest {file_path} ...")
     df = pd.read_csv(str(file_path)).fillna(0)
     #df = df.loc[df['AP/PA'] == 'PA']
+    if mode == "per_image":
+        df = df[(df['Frontal/Lateral'] == 'Frontal') & (df['AP/PA'] == 'PA')]
+        #print(df.head)
     LABELS = df.columns[-num_labels:].values.tolist()
     if LABELS[0] != "No Finding":
         idx = LABELS.index("No Finding")
@@ -43,7 +53,7 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
         entries = df_tmp
     elif mode == "per_study":
         logger.debug("grouping by studies ... ")
-        df_tmp['study'] = [Path(x).parent for x in df_tmp[df_tmp.columns[0]]]
+        df_tmp['study'] = df_tmp.apply(lambda x: str(Path(x[0]).parent), axis=1)
         df_tmp.set_index(['study'], inplace=True)
         aggs = { df_tmp.columns[0]: lambda x: ','.join(x.astype(str)) }
         aggs.update({ x: 'mean' for x in LABELS })
@@ -56,6 +66,9 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
     return entries
 
 
+MEAN = 0.4
+STDEV = 0.2
+
 cxr_train_transforms = tfms.Compose([
     tfms.ToPILImage(),
     tfms.ColorJitter(),
@@ -65,6 +78,7 @@ cxr_train_transforms = tfms.Compose([
     #tfms.RandomHorizontalFlip(),
     #tfms.RandomVerticalFlip(),
     tfms.ToTensor(),
+    tfms.Normalize((MEAN,), (STDEV,))
     #tfms.Normalize((0.1307,), (0.3081,))
 ])
 
@@ -73,24 +87,59 @@ cxr_test_transforms = tfms.Compose([
     tfms.Resize(MIN, Image.LANCZOS),
     tfms.CenterCrop(MIN),
     tfms.ToTensor(),
+    tfms.Normalize((MEAN,), (STDEV,))
     #tfms.Normalize((0.1307,), (0.3081,))
 ])
 
 
-def get_image(img_path, transforms):
-    image = imageio.imread(img_path)
+client = bmc.Client(('localhost:11211', ))
+
+def fetch_image(img_path):
+    image = client.get(str(img_path))
+    if image is None:
+        image = imageio.imread(img_path, as_gray=True)
+        client.set(str(img_path), image)
+    return image
+
+
+def get_image(img_path, transforms, use_memcache=True):
+    if use_memcache:
+        image = fetch_image(img_path)
+    else:
+        image = imageio.imread(img_path, as_gray=True)
     image_tensor = transforms(image)
     return image_tensor
 
+"""
+def get_study(img_paths, orients, transforms):
+    restruct = [[], []]
+    for img_path, orient in zip(img_paths, orients):
+        restruct[orient].append(img_path)
 
-def get_study(img_paths, transforms):
-    max_imgs = 20
-    image_tensor = torch.zeros(max_imgs, MIN, MIN)
+    def make_group(max_chs, img_paths):
+        image_tensor = torch.zeros(max_chs, MIN, MIN)
+        for i, img_path in enumerate(img_paths):
+            image = fetch_image(img_path)
+            image_tensor[i, :, :] = transforms(image)
+        if transforms == cxr_train_transforms:
+            image_tensor = image_tensor[torch.randperm(max_chs), :, :]
+        return image_tensor
+
+    tensors = [make_group(int(MAX_CHS / 2), x) for x in restruct]
+    image_tensor = torch.cat(tensors, dim=0)
+    return image_tensor
+"""
+def get_study(img_paths, transforms, use_memcache=True):
+    image_tensor = torch.randn(MAX_CHS, MIN, MIN) * STDEV + MEAN
     for i, img_path in enumerate(img_paths):
-        image = imageio.imread(img_path)
+        if use_memcache:
+            image = fetch_image(img_path)
+        else:
+            image = imageio.imread(img_path, as_gray=True)
+        imgs = transforms(image)
         image_tensor[i, :, :] = transforms(image)
     if transforms == cxr_train_transforms:
-        image_tensor = image_tensor[torch.randperm(max_imgs), :, :]
+        image_tensor = image_tensor[torch.randperm(MAX_CHS), :, :]
     return image_tensor
 
 
@@ -108,14 +157,14 @@ class CxrDataset(Dataset):
     def __getitem__(self, index):
 
         def get_entries(index):
-            df = self.entries.loc[index]
+            df = self.entries.iloc[index]
             paths = [self.base_path.joinpath(x).resolve() for x in df[0].split(',')]
             label = df[1:].tolist()
             return paths, label
 
         if self.mode == "per_image":
-            img_path, label = get_entries(index)
-            image_tensor = get_image(img_path[0], CxrDataset.transforms)
+            img_paths, label = get_entries(index)
+            image_tensor = get_image(img_paths[0], CxrDataset.transforms)
             target_tensor = torch.FloatTensor(label)
         elif self.mode == "per_study":
             img_paths, label = get_entries(index)
@@ -130,7 +179,7 @@ class CxrDataset(Dataset):
         return len(self.entries)
 
     def get_label_counts(self, indices=None):
-        df = self.entries if indices is None else self.entries.loc[indices]
+        df = self.entries if indices is None else self.entries.iloc[indices]
         counts = [df[x].value_counts() for x in self.labels]
         new_df = pd.concat(counts, axis=1).fillna(0).astype(int)
         return new_df
@@ -200,51 +249,57 @@ def cxr_random_split(dataset, lengths):
     return [CxrSubset(dataset, indices[offset - length:offset]) for offset, length in zip(_accumulate(lengths), lengths)]
 
 
-def copy_stanford_dataset(src_path):
+MIN_RES = 512
+
+def copy_stanford_dataset(src_path, image_process=True):
     for m in [src_path.joinpath("train.csv"), src_path.joinpath("valid.csv")]:
         print(f">>> processing {m}...")
         df = pd.read_csv(str(m))
         for i in tqdm(range(len(df)), total=len(df), dynamic_ncols=True):
             f = df.iloc[i]["Path"].split('/', 1)[1]
             ff = src_path.joinpath(f).resolve()
-            img = Image.open(ff)
-            w, h = img.size
-            rs = (MIN, int(h/w*MIN)) if w < h else (int(w/h*MIN), MIN)
-            resized = img.resize(rs, Image.LANCZOS)
+            if image_process:
+                img = Image.open(ff)
+                w, h = img.size
+                rs = (MIN_RES, int(h/w*MIN_RES)) if w < h else (int(w/h*MIN_RES), MIN_RES)
+                resized = img.resize(rs, Image.LANCZOS)
             r = ff.relative_to(src_path)
             t = STANFORD_CXR_BASE.joinpath(r).resolve()
             #print(f"{ff} -> {t}")
-            Path.mkdir(t.parent, parents=True, exist_ok=True)
-            resized.save(t, "JPEG")
+            if image_process:
+                Path.mkdir(t.parent, parents=True, exist_ok=True)
+                resized.save(t, "JPEG")
             df.at[i, "Path"] = f
         r = m.relative_to(src_path).name
         t = STANFORD_CXR_BASE.joinpath(r).resolve()
         df.to_csv(t, float_format="%.0f", index=False)
 
 
-def copy_mimic_dataset(src_path):
+def copy_mimic_dataset(src_path, image_process=True):
     for m in [src_path.joinpath("train.csv"), src_path.joinpath("valid.csv")]:
         print(f">>> processing {m}...")
         df = pd.read_csv(str(m))
         for i in tqdm(range(len(df)), total=len(df), dynamic_ncols=True):
             f = df.iloc[i]["path"]
             ff = src_path.joinpath(f).resolve()
-            img = Image.open(ff)
-            w, h = img.size
-            rs = (MIN, int(h/w*MIN)) if w < h else (int(w/h*MIN), MIN)
-            resized = img.resize(rs, Image.LANCZOS)
+            if image_process:
+                img = Image.open(ff)
+                w, h = img.size
+                rs = (MIN_RES, int(h/w*MIN_RES)) if w < h else (int(w/h*MIN_RES), MIN_RES)
+                resized = img.resize(rs, Image.LANCZOS)
             r = ff.relative_to(src_path)
             t = MIMIC_CXR_BASE.joinpath(r).resolve()
             #print(f"{ff} -> {t}")
-            Path.mkdir(t.parent, parents=True, exist_ok=True)
-            resized.save(t, "JPEG")
+            if image_process:
+                Path.mkdir(t.parent, parents=True, exist_ok=True)
+                resized.save(t, "JPEG")
         df.rename(columns={"Airspace Opacity": "Lung Opacity"}) # to match stanford's label
         r = m.relative_to(src_path).name
         t = MIMIC_CXR_BASE.joinpath(r).resolve()
         df.to_csv(t, float_format="%.0f", index=False)
 
 
-def copy_nih_dataset(src_path):
+def copy_nih_dataset(src_path, image_process=True):
     manifest_file = src_path.joinpath("Data_Entry_2017.csv")
     print(f">>> processing {manifest_file}...")
     df = pd.read_csv(str(manifest_file))
@@ -257,18 +312,20 @@ def copy_nih_dataset(src_path):
         patient = row["Patient ID"]
         study = row["Follow-up #"]
         ff = files_list[f]
-        img = Image.open(ff)
-        w, h = img.size
-        rs = (MIN, int(h/w*MIN)) if w < h else (int(w/h*MIN), MIN)
-        resized = img.resize(rs, Image.LANCZOS).convert('L')
+        if image_process:
+            img = Image.open(ff)
+            w, h = img.size
+            rs = (MIN_RES, int(h/w*MIN_RES)) if w < h else (int(w/h*MIN_RES), MIN_RES)
+            resized = img.resize(rs, Image.LANCZOS).convert('L')
         r = ff.relative_to(src_path)
         t = NIH_CXR_BASE.joinpath(r).resolve()
         basename, filename = t.parent, t.name
         t = basename.joinpath(f"patient{patient:05d}", f"study{study:03d}", filename)
         t = Path(str(t).replace('.png', '.jpg'))
         #print(f"{ff} -> {t}")
-        Path.mkdir(t.parent, parents=True, exist_ok=True)
-        resized.save(t, "JPEG")
+        if image_process:
+            Path.mkdir(t.parent, parents=True, exist_ok=True)
+            resized.save(t, "JPEG")
         df_tmp = pd.DataFrame()
         df_tmp["path"] = [t.relative_to(NIH_CXR_BASE)]
         for l in row["Finding Labels"].split('|'):
