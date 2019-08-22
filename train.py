@@ -58,7 +58,7 @@ class TrainEnvironment(PredictEnvironment):
         self.local_rank = 0
         self.rank = 0
 
-        mode = "per_study"
+        mode = "per_image"
         stanford_train_set = CxrDataset(STANFORD_CXR_BASE, "train.csv", mode=mode)
         stanford_test_set = CxrDataset(STANFORD_CXR_BASE, "valid.csv", mode=mode)
 
@@ -101,14 +101,22 @@ class TrainEnvironment(PredictEnvironment):
         ratio = df.loc[0] / df.loc[1]
         return ratio.values.tolist()
 
+    def load_model(self, filename):
+        ckpt = super().load_model(filename)
+        if 'optimizer_state' in ckpt:
+            optimizer_state = ckpt['optimizer_state']
+            self.optimizer.load_state_dict(optimizer_state)
+
     def save_model(self, filename):
         filedir = Path(filename).parent.resolve()
         filedir.mkdir(mode=0o755, parents=True, exist_ok=True)
         filepath = Path(filename).resolve()
         logger.debug(f"saving the model to {filepath}")
-        state = self.model.state_dict()
-        pkg = { 'state': state, 'thresholds': self.thresholds }
-        torch.save(pkg, filename)
+        torch.save({
+            'model_state': self.model.state_dict(),
+            'optimizer_state': self.optimizer.state_dict(),
+            'thresholds': self.thresholds,
+        }, filename)
 
 
 class DistributedTrainEnvironment(TrainEnvironment):
@@ -408,36 +416,6 @@ class Trainer:
             pickle.dump(self.metrics, f)
 
 
-# We want to visualize the output of the spatial transformers layer
-# after the training, we visualize a batch of input images and
-# the corresponding transformed batch using STN.
-
-def convert_image_np(inp):
-    inp = inp.numpy().transpose((1, 2, 0))
-    mean = np.array([0.485, 0.456, 0.406])
-    std = np.array([0.229, 0.224, 0.225])
-    inp = std * inp + mean
-    inp = np.clip(inp, 0, 1)
-    return inp
-
-def visualize_stn():
-    with torch.no_grad():
-        # Get a batch of training data
-        data = next(iter(test_loader))[0].to(device)
-        input_tensor = data.cpu()
-        transformed_input_tensor = model.stn(data).cpu()
-        in_grid = convert_image_np(
-            torchvision.utils.make_grid(input_tensor))
-        out_grid = convert_image_np(
-            torchvision.utils.make_grid(transformed_input_tensor))
-        # Plot the results side-by-side
-        f, axarr = plt.subplots(1, 2)
-        axarr[0].imshow(in_grid)
-        axarr[0].set_title('Dataset Images')
-        axarr[1].imshow(out_grid)
-        axarr[1].set_title('Transformed Images')
-
-
 def initialize(args):
     if args.amp:
         assert args.cuda is not None
@@ -500,6 +478,3 @@ if __name__ == "__main__":
     t = Trainer(env, runtime_path=runtime_path, tensorboard=args.tensorboard)
     t.train(args.epoch, start_epoch=args.start_epoch)
 
-    # Visualize the STN transformation on some input batch
-    #visualize_stn()
-    #plt.show()
