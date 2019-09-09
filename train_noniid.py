@@ -30,13 +30,6 @@ from train import Trainer, initialize
 from dataset import STANFORD_CXR_BASE, MIMIC_CXR_BASE, NIH_CXR_BASE, CxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
 
 
-def clean_logger():
-    logging.getLogger().handlers = []
-    for name in logging.root.manager.loggerDict:
-        if name != "pytorch-cxr":
-            logging.getLogger(name).handlers = []
-
-
 DATASETS = ["stanford", "mimic", "nih"]
 
 
