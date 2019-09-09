@@ -46,22 +46,22 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         mode = "per_study"
         stanford_train_set = CxrDataset(STANFORD_CXR_BASE, "train.csv", num_labels=5, mode=mode)
         stanford_test_set = CxrDataset(STANFORD_CXR_BASE, "valid.csv", num_labels=5, mode=mode)
-        """
+
         stanford_set = CxrConcatDataset([stanford_train_set, stanford_test_set])
 
-        mimic_train_set = CxrDataset(MIMIC_CXR_BASE, "train.csv", num_labels=14, mode=mode)
-        mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", num_labels=14, mode=mode)
+        mimic_train_set = CxrDataset(MIMIC_CXR_BASE, "train.csv", num_labels=5, mode=mode)
+        mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", num_labels=5, mode=mode)
         mimic_set = CxrConcatDataset([mimic_train_set, mimic_test_set])
 
-        nih_set = CxrDataset(NIH_CXR_BASE, "Data_Entry_2017.csv", num_labels=15, mode=mode)
+        nih_set = CxrDataset(NIH_CXR_BASE, "Data_Entry_2017.csv", num_labels=5, mode=mode)
 
         set_splits = [20000, 10000]
 
         self.stanford_datasets = cxr_random_split(stanford_set, set_splits)
         self.mimic_datasets = cxr_random_split(mimic_set, set_splits)
         self.nih_datasets = cxr_random_split(nih_set, set_splits)
-        """
-        self.stanford_datasets = [stanford_train_set, stanford_test_set]
+
+        #self.stanford_datasets = [stanford_train_set, stanford_test_set]
 
         if train_data == "stanford":
             self.set_data_loader(self.stanford_datasets, None)
@@ -72,7 +72,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
 
         self.labels = [x.lower() for x in self.train_loader.dataset.labels]
         self.out_dim = len(self.labels)
-        #self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
+        self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
 
         #img, tar = datasets[0]
         #plt.imshow(img.squeeze(), cmap='gray')
@@ -81,8 +81,8 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
 
         self.optimizer = AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-2)
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
-        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
