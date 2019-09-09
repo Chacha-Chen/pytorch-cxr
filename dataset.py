@@ -40,15 +40,16 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
     df = pd.read_csv(str(file_path)).fillna(0)
     #if mode == "per_image":
     #    df = df[(df['Frontal/Lateral'] == 'Frontal') & (df['AP/PA'] == 'PA')]
-    #LABELS = df.columns[-num_labels:].values.tolist()
-    LABELS = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
+    LABELS = df.columns[-num_labels:].values.tolist()
+    #LABELS = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
     #if LABELS[0] != "No Finding":
     #    idx = LABELS.index("No Finding")
     #    LABELS[0], LABELS[idx] = LABELS[idx], LABELS[0]
     paths = df[df.columns[0]]
-    orients = df['Frontal/Lateral'].replace({'Frontal': '0', 'Lateral': '1'})
+    #orients = df['Frontal/Lateral'].replace({'Frontal': '0', 'Lateral': '1'})
     labels = df[LABELS].astype(int).replace(-1, 1)  # substitute uncertainty to positive
-    df_tmp = pd.concat([paths, orients, labels], axis=1)
+    #df_tmp = pd.concat([paths, orients, labels], axis=1)
+    df_tmp = pd.concat([paths, labels], axis=1)
     if mode == "per_image":
         entries = df_tmp
     elif mode == "per_study":
@@ -56,7 +57,7 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
         df_tmp['study'] = df_tmp.apply(lambda x: str(Path(x[0]).parent), axis=1)
         df_tmp.set_index(['study'], inplace=True)
         aggs = { df_tmp.columns[0]: lambda x: ','.join(x.astype(str)) }
-        aggs.update({ df_tmp.columns[1]: lambda x: ','.join(x.astype(str)) })
+        #aggs.update({ df_tmp.columns[1]: lambda x: ','.join(x.astype(str)) })
         aggs.update({ x: 'mean' for x in LABELS })
         df_tmp = df_tmp.groupby(['study']).agg(aggs).reset_index(0, drop=True)
         entries = df_tmp
@@ -130,7 +131,7 @@ def get_study(img_paths, orients, transforms):
     image_tensor = torch.cat(tensors, dim=0)
     return image_tensor
 """
-def get_study(img_paths, orients, transforms, use_memcache=True):
+def get_study(img_paths, transforms, use_memcache=True):
     image_tensor = torch.randn(MAX_CHS, MIN, MIN) * STDEV + MEAN
     for i, img_path in enumerate(img_paths):
         if use_memcache:
@@ -160,17 +161,17 @@ class CxrDataset(Dataset):
         def get_entries(index):
             df = self.entries.iloc[index]
             paths = [self.base_path.joinpath(x).resolve() for x in df[0].split(',')]
-            orients = [int(x) for x in df[1].split(',')]
-            label = df[2:].tolist()
-            return paths, orients, label
+            #orients = [int(x) for x in df[1].split(',')]
+            label = df[1:].tolist()
+            return paths, label
 
         if self.mode == "per_image":
-            img_paths, orients, label = get_entries(index)
+            img_paths, label = get_entries(index)
             image_tensor = get_image(img_paths[0], CxrDataset.transforms)
             target_tensor = torch.FloatTensor(label)
         elif self.mode == "per_study":
-            img_paths, orients, label = get_entries(index)
-            image_tensor = get_study(img_paths, orients, CxrDataset.transforms)
+            img_paths, label = get_entries(index)
+            image_tensor = get_study(img_paths, CxrDataset.transforms)
             target_tensor = torch.FloatTensor(label)
         else:
             raise RuntimeError
@@ -188,7 +189,7 @@ class CxrDataset(Dataset):
 
     @property
     def labels(self):
-        return self.entries.columns[2:].values.tolist()
+        return self.entries.columns[1:].values.tolist()
 
     @staticmethod
     def train():
