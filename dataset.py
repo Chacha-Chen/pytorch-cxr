@@ -70,11 +70,11 @@ def _load_manifest(file_path, num_labels=14, mode="per_study"):
 MEAN = 0.4
 STDEV = 0.2
 
+
 cxr_train_transforms = tfms.Compose([
     tfms.ToPILImage(),
-    #tfms.ColorJitter(),
+    tfms.RandomAffine((-5, 5), translate=None, scale=None, shear=(0.9, 1.1)),
     tfms.Resize(MIN+10, Image.LANCZOS),
-    #tfms.RandomRotation((-10, 10)),
     tfms.RandomCrop((MIN, MIN)),
     #tfms.RandomHorizontalFlip(),
     #tfms.RandomVerticalFlip(),

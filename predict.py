@@ -26,19 +26,25 @@ class PredictEnvironment:
     def load_model(self, filename):
         filepath = Path(filename).resolve()
         logger.debug(f"loading the model from {filepath}")
-        try:
-            pkg = torch.load(filepath, map_location=self.device)
-            state = pkg['state']
-            self.thresholds = pkg['thresholds']
-        except:
-            state = torch.load(filepath, map_location=self.device)
 
+        ckpt = torch.load(filepath, map_location=self.device)
+
+        if 'model_state' in ckpt:
+            model_state = ckpt['model_state']
+        elif 'state' in ckpt:   # for legacy
+            model_state = ckpt['state']
+        else:                   # for legacy
+            model_state = ckpt
         try:
-            self.model.load_state_dict(state, strict=True)
+            self.model.load_state_dict(model_state, strict=True)
         except:
             # remove 'module.' from keys due to DDP
-            new_state = { k.replace('module.', ''): v for k, v in state.items() }
+            new_state = { k.replace('module.', ''): v for k, v in model_state.items() }
             self.model.load_state_dict(new_state, strict=True)
+        if 'thresholds' in ckpt:
+            self.thresholds = ckpt['thresholds']
+
+        return ckpt
 
 
 class Predictor:
