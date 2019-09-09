@@ -43,7 +43,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         self.local_rank = 0
         self.rank = 0
 
-        mode = "per_image"
+        mode = "per_study"
         stanford_train_set = CxrDataset(STANFORD_CXR_BASE, "train.csv", num_labels=14, mode=mode)
         stanford_test_set = CxrDataset(STANFORD_CXR_BASE, "valid.csv", num_labels=14, mode=mode)
         stanford_set = CxrConcatDataset([stanford_train_set, stanford_test_set])
