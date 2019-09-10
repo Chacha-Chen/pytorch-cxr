@@ -55,7 +55,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
 
         nih_set = CxrDataset(NIH_CXR_BASE, "Data_Entry_2017.csv", num_labels=5, mode=mode)
 
-        set_splits = [20000, 10000]
+        set_splits = [100000, 10000]
 
         self.stanford_datasets = cxr_random_split(stanford_set, set_splits)
         self.mimic_datasets = cxr_random_split(mimic_set, set_splits)
@@ -87,22 +87,27 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
-    def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=32, num_workers=8):
+    def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=16, num_workers=4):
+        num_trainset = 1000
+        trainset = CxrSubset(main_datasets[0], list(range(num_trainset)))
         pin_memory = True if self.device.type == 'cuda' else False
-        self.train_loader = DataLoader(main_datasets[0], batch_size=batch_size, num_workers=num_workers,
+        self.train_loader = DataLoader(trainset, batch_size=batch_size, num_workers=num_workers,
                                        shuffle=True, pin_memory=pin_memory)
-        self.test_loader = DataLoader(main_datasets[1], batch_size=batch_size * 2, num_workers=num_workers * 2,
+        self.test_loader = DataLoader(main_datasets[1], batch_size=batch_size * 4, num_workers=num_workers,
                                       shuffle=False, pin_memory=pin_memory)
         if xtest_datasets is not None:
-            self.xtest_loaders = [DataLoader(datasets[1], batch_size=batch_size * 2, num_workers=num_workers * 2,
+            self.xtest_loaders = [DataLoader(datasets[1], batch_size=batch_size * 4, num_workers=num_workers,
                                              shuffle=False, pin_memory=pin_memory)
                                   for datasets in xtest_datasets]
         else:
             self.xtest_loaders = []
 
     def get_positive_weights(self):
-        df = self.train_loader.dataset.get_label_counts()
-        ratio = df.loc[0] / df.loc[1]
+        train_df = self.train_loader.dataset.get_label_counts()
+        logger.info(f"train label counts\n{train_df}")
+        test_df = self.test_loader.dataset.get_label_counts()
+        logger.info(f"test label counts\n{test_df}")
+        ratio = train_df.loc[0] / train_df.loc[1]
         return ratio.values.tolist()
 
     def save_model(self, filename):
