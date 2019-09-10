@@ -12,6 +12,5 @@ python -m torch.distributed.launch \
   --master_port $MASTER_PORT \
   train_noniid.py \
   --cuda 0,1,2 \
-  --tensorboard \
-  --epoch 500 \
-  --runtime-dir 20190805_20k_noniid_dist_label_split
+  --runtime-dir 20190910_noniid_1k_dist \
+  --tensorboard
