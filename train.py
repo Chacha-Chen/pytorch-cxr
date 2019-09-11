@@ -5,8 +5,11 @@ simplefilter(action='ignore', category=FutureWarning)
 
 import numpy as np
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 from prettytable import PrettyTable
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
