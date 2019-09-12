@@ -55,7 +55,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
 
         nih_set = CxrDataset(NIH_CXR_BASE, "Data_Entry_2017.csv", num_labels=5, mode=mode)
 
-        set_splits = [100000, 10000]
+        set_splits = [10000] * 11
 
         self.stanford_datasets = cxr_random_split(stanford_set, set_splits)
         self.mimic_datasets = cxr_random_split(mimic_set, set_splits)
@@ -87,16 +87,16 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
-    def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=16, num_workers=4):
+    def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=8, num_workers=2):
         num_trainset = 1000
-        trainset = CxrSubset(main_datasets[0], list(range(num_trainset)))
+        trainset = CxrSubset(main_datasets[self.rank], list(range(num_trainset)))
         pin_memory = True if self.device.type == 'cuda' else False
         self.train_loader = DataLoader(trainset, batch_size=batch_size, num_workers=num_workers,
                                        shuffle=True, pin_memory=pin_memory)
-        self.test_loader = DataLoader(main_datasets[1], batch_size=batch_size * 4, num_workers=num_workers,
+        self.test_loader = DataLoader(main_datasets[-1], batch_size=batch_size, num_workers=num_workers,
                                       shuffle=False, pin_memory=pin_memory)
         if xtest_datasets is not None:
-            self.xtest_loaders = [DataLoader(datasets[1], batch_size=batch_size * 4, num_workers=num_workers,
+            self.xtest_loaders = [DataLoader(xtest_datasets[-1], batch_size=batch_size, num_workers=num_workers,
                                              shuffle=False, pin_memory=pin_memory)
                                   for datasets in xtest_datasets]
         else:
@@ -123,17 +123,18 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
 
     def __init__(self, device, local_rank, amp_enable=False):
         rank = dist.get_rank()
+        dataset_id = rank % len(DATASETS)
 
-        super().__init__(device, train_data=DATASETS[rank], amp_enable=amp_enable)
+        super().__init__(device, train_data=DATASETS[dataset_id], amp_enable=amp_enable)
         self.distributed = True
         self.local_rank = local_rank
         self.world_size = dist.get_world_size()
         self.rank = rank
         logger.info(f"initialized on {device} as rank {self.rank} of {self.world_size}")
 
-        if self.rank == 0:
+        if dataset_id == 0:
             self.set_data_loader(self.stanford_datasets, None)
-        elif self.rank == 1:
+        elif dataset_id == 1:
             self.set_data_loader(self.mimic_datasets, None)
         else:
             self.set_data_loader(self.nih_datasets, None)
