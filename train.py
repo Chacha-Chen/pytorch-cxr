@@ -39,7 +39,7 @@ def check_distributed(args):
     if args.local_rank is None:
         return False, devices[0]
     else:
-        device = devices[args.local_rank]
+        device = devices[args.local_rank % len(devices)]
         torch.cuda.set_device(device)
         logger.info(f"waiting other ranks ...")
         dist.init_process_group(backend="nccl", init_method="env://")
