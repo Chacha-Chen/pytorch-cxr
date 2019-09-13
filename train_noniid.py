@@ -40,6 +40,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         self.distributed = False
         self.amp = amp_enable
 
+        self.train_data = train_data
         self.local_rank = 0
         self.rank = 0
 
@@ -87,9 +88,11 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
-    def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=8, num_workers=2):
+    def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=1, num_workers=0):
         num_trainset = 1000
-        trainset = CxrSubset(main_datasets[self.rank], list(range(num_trainset)))
+        train_group_id = int(self.rank / len(DATASETS))
+        logger.info(f"rank {self.rank} sets {self.train_data} group {train_group_id}")
+        trainset = CxrSubset(main_datasets[train_group_id], list(range(num_trainset)))
         pin_memory = True if self.device.type == 'cuda' else False
         self.train_loader = DataLoader(trainset, batch_size=batch_size, num_workers=num_workers,
                                        shuffle=True, pin_memory=pin_memory)
@@ -136,7 +139,7 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
             self.set_data_loader(self.stanford_datasets, None)
         elif dataset_id == 1:
             self.set_data_loader(self.mimic_datasets, None)
-        else:
+        else: # dataset_id == 2
             self.set_data_loader(self.nih_datasets, None)
 
         #self.model = DistributedDataParallel(self.model, device_ids=[self.device],
