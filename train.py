@@ -314,26 +314,25 @@ class Trainer:
             idx = np.argmax(rects)
             selected_tprs[i] = tprs[idx]
             self.env.thresholds[i] = thrs[idx]
-            if roc:
-                if self.tensorboard:
-                    fig = plt.figure()
-                    ax1 = fig.add_subplot(1, 1, 1)
-                    ax1.plot(fprs, tprs, 'b-')
-                    ax1.plot([0., 1.], [0., 1.], 'k--')
-                    ax1.plot([fprs[idx], fprs[idx]], [0., 1.], 'c--')
-                    ax1.plot([0., 1.], [tprs[idx], tprs[idx]], 'c--')
-                    ax1.set_xlim([0., 1.])
-                    ax1.set_ylim([0., 1.])
-                    plt.xlabel('FPR (1-specificity)')
-                    plt.ylabel('TPR (sensitivity, recall)')
-                    plt.title(f'ROC curve for {l} at epoch {epoch}')
-                    ax2 = ax1.twinx()
-                    ax2.plot(fprs, thrs, 'r-')
-                    ax2.plot([0., 1.], [thrs[idx], thrs[idx]], 'm--')
-                    ax2.set_ylim([thrs[-1], thrs[0]])
-                    ax2.set_ylabel('threshold')
-                    self.writer.add_figure(f"{l}/{prefix}roc_curve", fig, global_step=epoch)
-                self.add_metric(f'{l}/{prefix}roc_curve', (epoch, (fprs, tprs, thrs)))
+            if roc and self.tensorboard:
+                fig = plt.figure()
+                ax1 = fig.add_subplot(1, 1, 1)
+                ax1.plot(fprs, tprs, 'b-')
+                ax1.plot([0., 1.], [0., 1.], 'k--')
+                ax1.plot([fprs[idx], fprs[idx]], [0., 1.], 'c--')
+                ax1.plot([0., 1.], [tprs[idx], tprs[idx]], 'c--')
+                ax1.set_xlim([0., 1.])
+                ax1.set_ylim([0., 1.])
+                plt.xlabel('FPR (1-specificity)')
+                plt.ylabel('TPR (sensitivity, recall)')
+                plt.title(f'ROC curve for {l} at epoch {epoch}')
+                ax2 = ax1.twinx()
+                ax2.plot(fprs, thrs, 'r-')
+                ax2.plot([0., 1.], [thrs[idx], thrs[idx]], 'm--')
+                ax2.set_ylim([thrs[-1], thrs[0]])
+                ax2.set_ylabel('threshold')
+                self.writer.add_figure(f"{l}/{prefix}roc_curve", fig, global_step=epoch)
+            self.add_metric(f'{l}/{prefix}roc_curve', (epoch, (fprs, tprs, thrs)))
 
         # accuracy
         accuracies = [0.] * out_dim
@@ -374,42 +373,44 @@ class Trainer:
         for i, l in enumerate(labels):
             self.add_metric(f'{l}/{prefix}auc_score', (epoch, auc_scores[i]))
 
-        if prc:
-            # precision and recall
-            for i, l in enumerate(labels):
-                pcs, rcs, thrs = sklm.precision_recall_curve(ys[:, i], ys_hat[:, i])
-                rects = [w * h for w, h in zip(rcs, pcs)]
-                idx = np.argmax(rects)
-                if self.tensorboard:
-                    fig = plt.figure()
-                    ax1 = fig.add_subplot(1, 1, 1)
-                    ax1.plot(rcs, pcs, 'b-')
-                    ax1.plot([rcs[idx], rcs[idx]], [0., 1.], 'c--')
-                    ax1.plot([0., 1.], [pcs[idx], pcs[idx]], 'c--')
-                    ax1.plot([selected_tprs[i], selected_tprs[i]], [0., 1.], 'g--')
-                    ax1.set_xlim([0., 1.])
-                    ax1.set_ylim([0., 1.])
-                    plt.xlabel('recall (TPR, sensitivity)')
-                    plt.ylabel('precision')
-                    plt.title(f'precision-recall curve for {l} at epoch {epoch}')
-                    ax2 = ax1.twinx()
-                    ax2.plot(rcs[:-1], thrs, 'r-')
-                    ax2.plot([0., 1.], [thrs[idx], thrs[idx]], 'm--')
-                    ax2.plot([0., 1.], [self.env.thresholds[i], self.env.thresholds[i]], 'g--')
-                    ax2.set_ylim([thrs[0], thrs[-1]])
-                    ax2.set_ylabel('threshold')
-                    self.writer.add_figure(f"{l}/{prefix}precision_recall_curve", fig, global_step=epoch)
-                self.add_metric(f'{l}/{prefix}precision_recall_curve', (epoch, (rcs, pcs, thrs)))
+        if not prc:
+            return
 
-                t, p = ys[:, i].astype(np.int), (ys_hat[:, i] > self.env.thresholds[i]).astype(np.int)
-                precision, recall, f1_score, support = sklm.precision_recall_fscore_support(t, p, beta=1.0, labels=[1, 0])
-                if self.tensorboard:
-                    self.writer.add_scalar(f"{l}/{prefix}precision", precision[0], global_step=epoch)
-                    self.writer.add_scalar(f"{l}/{prefix}recall", recall[0], global_step=epoch)
-                    self.writer.add_scalar(f"{l}/{prefix}f1_score", f1_score[0], global_step=epoch)
-                self.add_metric(f'{l}/{prefix}precision', (epoch, precision[0]))
-                self.add_metric(f'{l}/{prefix}recall', (epoch, recall[0]))
-                self.add_metric(f'{l}/{prefix}f1_score', (epoch, f1_score[0]))
+        # precision and recall
+        for i, l in enumerate(labels):
+            pcs, rcs, thrs = sklm.precision_recall_curve(ys[:, i], ys_hat[:, i])
+            rects = [w * h for w, h in zip(rcs, pcs)]
+            idx = np.argmax(rects)
+            if self.tensorboard:
+                fig = plt.figure()
+                ax1 = fig.add_subplot(1, 1, 1)
+                ax1.plot(rcs, pcs, 'b-')
+                ax1.plot([rcs[idx], rcs[idx]], [0., 1.], 'c--')
+                ax1.plot([0., 1.], [pcs[idx], pcs[idx]], 'c--')
+                ax1.plot([selected_tprs[i], selected_tprs[i]], [0., 1.], 'g--')
+                ax1.set_xlim([0., 1.])
+                ax1.set_ylim([0., 1.])
+                plt.xlabel('recall (TPR, sensitivity)')
+                plt.ylabel('precision')
+                plt.title(f'precision-recall curve for {l} at epoch {epoch}')
+                ax2 = ax1.twinx()
+                ax2.plot(rcs[:-1], thrs, 'r-')
+                ax2.plot([0., 1.], [thrs[idx], thrs[idx]], 'm--')
+                ax2.plot([0., 1.], [self.env.thresholds[i], self.env.thresholds[i]], 'g--')
+                ax2.set_ylim([thrs[0], thrs[-1]])
+                ax2.set_ylabel('threshold')
+                self.writer.add_figure(f"{l}/{prefix}precision_recall_curve", fig, global_step=epoch)
+            self.add_metric(f'{l}/{prefix}precision_recall_curve', (epoch, (rcs, pcs, thrs)))
+
+            t, p = ys[:, i].astype(np.int), (ys_hat[:, i] > self.env.thresholds[i]).astype(np.int)
+            precision, recall, f1_score, support = sklm.precision_recall_fscore_support(t, p, beta=1.0, labels=[1, 0])
+            if self.tensorboard:
+                self.writer.add_scalar(f"{l}/{prefix}precision", precision[0], global_step=epoch)
+                self.writer.add_scalar(f"{l}/{prefix}recall", recall[0], global_step=epoch)
+                self.writer.add_scalar(f"{l}/{prefix}f1_score", f1_score[0], global_step=epoch)
+            self.add_metric(f'{l}/{prefix}precision', (epoch, precision[0]))
+            self.add_metric(f'{l}/{prefix}recall', (epoch, recall[0]))
+            self.add_metric(f'{l}/{prefix}f1_score', (epoch, f1_score[0]))
 
     def load(self):
         filepath = self.runtime_path.joinpath(f"train.{self.env.rank}.pkl")
