@@ -43,6 +43,7 @@ def check_distributed(args):
         torch.cuda.set_device(device)
         logger.info(f"waiting other ranks ...")
         dist.init_process_group(backend="nccl", init_method="env://")
+        logger.info(f"set world_size to {dist.get_world_size()}")
         return True, device
 
 
