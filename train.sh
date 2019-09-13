@@ -4,7 +4,7 @@ export NCCL_DEBUG=INFO
 #export NCCL_DEBUG_SUBSYS=ALL
 
 export MASTER_ADDR="172.19.2.106"
-export MASTER_PORT="23456"
+export MASTER_PORT="12345"
 
 python -m torch.distributed.launch \
   --nnodes 2 \
