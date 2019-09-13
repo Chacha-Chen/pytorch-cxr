@@ -90,7 +90,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
 
     def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=1, num_workers=0):
         num_trainset = 1000
-        train_group_id = int(self.rank / len(DATASETS))
+        train_group_id = int(self.rank / len(DATASETS)) + 2
         logger.info(f"rank {self.rank} sets {self.train_data} group {train_group_id}")
         trainset = CxrSubset(main_datasets[train_group_id], list(range(num_trainset)))
         pin_memory = True if self.device.type == 'cuda' else False
