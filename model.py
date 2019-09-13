@@ -90,15 +90,15 @@ class WindowOptimizer(nn.Module):
 
 class CustomBlock(nn.Module):
 
-    def __init__(self, hidden=512, out_dim=14):
+    def __init__(self, hidden=512, out_dim=14, dropout=0):
         super().__init__()
         self.custom = nn.Sequential(OrderedDict([
                 #('bn0', nn.BatchNorm1d(num_fc_neurons)),
-                ('do0', nn.Dropout(0.5)),
+                ('do0', nn.Dropout(dropout)),
                 ('fc0', nn.Linear(hidden, hidden)),
                 ('rl0', nn.ReLU()),
                 #('bn1', nn.BatchNorm1d(num_fc_neurons)),
-                ('do1', nn.Dropout(0.5)),
+                ('do1', nn.Dropout(dropout)),
                 ('fc1', nn.Linear(hidden, hidden)),
                 ('rl1', nn.ReLU()),
         ]))
@@ -119,23 +119,23 @@ class Network(nn.Module):
         #self.main.conv1 = nn.Conv2d(20, 64, kernel_size=7, stride=2, padding=3, bias=False)
         #self.main.fc = nn.Linear(self.main.fc.in_features, out_dim)
         num_fc_neurons = 512
-        #self.main = tvm.densenet121(pretrained=False, drop_rate=0.5, num_classes=num_fc_neurons)
-        self.main = tvm.densenet121(pretrained=False, drop_rate=0, num_classes=out_dim)
+        self.main = tvm.densenet121(pretrained=False, drop_rate=0, num_classes=num_fc_neurons)
+        #self.main = tvm.densenet121(pretrained=False, drop_rate=0, num_classes=out_dim)
         if mode == "per_study":
             self.main.features.conv0 = nn.Conv2d(MAX_CHS, 64, kernel_size=7, stride=2, padding=3, bias=False)
         else:
             self.main.features.conv0 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
-        #self.mode = mode
+        self.mode = mode
 
-        #self.custom = nn.ModuleList([
-        #    nn.Sequential(OrderedDict([
-        #        ('cb', CustomBlock(hidden=num_fc_neurons)),
-        #        #('bn2', nn.BatchNorm1d(num_fc_neurons)),
-        #        ('do', nn.Dropout(0.5)),
-        #        ('fc', nn.Linear(num_fc_neurons, 1)),
-        #    ]))
-        #    for _ in range(out_dim)
-        #])
+        self.custom = nn.ModuleList([
+            nn.Sequential(OrderedDict([
+                ('cb', CustomBlock(hidden=num_fc_neurons, out_dim=num_fc_neurons, dropout=0)),
+                #('bn2', nn.BatchNorm1d(num_fc_neurons)),
+                #('do', nn.Dropout(0.5)),
+                ('fc', nn.Linear(num_fc_neurons, 1)),
+            ]))
+            for _ in range(out_dim)
+        ])
 
     def to_distributed(self, device):
         #modules = self.main.features.__dict__.get('_modules')
@@ -155,8 +155,8 @@ class Network(nn.Module):
 
     def forward(self, x):
         x = self.main(x)
-        #xs = [m(x) for m in self.custom]
-        #x = torch.cat(xs, dim=1)
+        xs = [m(x) for m in self.custom]
+        x = torch.cat(xs, dim=1)
         return x
 
 
