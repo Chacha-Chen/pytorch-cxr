@@ -62,7 +62,7 @@ class MyLogger(logging.Logger):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.addFilter(MyFilter('-'))
-        self.formatter = logging.Formatter('%(asctime)s %(rank)s [%(levelname)-5s] %(message)s')
+        self.formatter = logging.Formatter('%(asctime)s %(rank)2s [%(levelname)-5s] %(message)s')
         self.set_log_to_stream(level=logging.DEBUG)
 
     def set_rank(self, rank):
