@@ -80,7 +80,9 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
 
         super().__init__(out_dim=self.out_dim, device=self.device, mode=mode)
 
-        self.optimizer = AdamW(self.model.parameters(), lr=1e-5, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-2)
+        self.optimizer = AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-2)
+        #self.optimizer = optim.SGD(self.model.parameters(), lr=1e-3, momentum=0.9, weight_decay=1e-2)
+        self.scheduler = None
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
         self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
         #self.loss = nn.BCEWithLogitsLoss(reduction='none')
