@@ -6,12 +6,12 @@ export NCCL_DEBUG=INFO
 export MASTER_ADDR="172.19.2.106"
 export MASTER_PORT="12345"
 
-runtime_dir="20190913_noniid_1k_dist_rank6"
+runtime_dir="20190915_noniid_1k_dist_rank3"
 
 python -m torch.distributed.launch \
   --nnodes 1 \
   --node_rank 0 \
-  --nproc_per_node 6 \
+  --nproc_per_node 3 \
   --master_addr $MASTER_ADDR \
   --master_port $MASTER_PORT \
   train_noniid.py \
