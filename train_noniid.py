@@ -223,7 +223,7 @@ if __name__ == "__main__":
     # for training
     parser.add_argument('--cuda', default=None, type=str, help="use GPUs with its device ids, separated by commas")
     parser.add_argument('--amp', default=False, action='store_true', help="use automatic mixed precision for faster training")
-    parser.add_argument('--epoch', default=100, type=int, help="max number of epochs")
+    parser.add_argument('--epoch', default=500, type=int, help="max number of epochs")
     parser.add_argument('--start-epoch', default=1, type=int, help="start epoch, especially need to continue from a stored model")
     parser.add_argument('--runtime-dir', default='./runtime', type=str, help="runtime directory to store log, pretrained models, and tensorboard metadata")
     parser.add_argument('--tensorboard', default=False, action='store_true', help="true if logging to tensorboard")

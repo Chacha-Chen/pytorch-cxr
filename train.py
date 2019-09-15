@@ -6,6 +6,7 @@ simplefilter(action='ignore', category=FutureWarning)
 import numpy as np
 from tqdm import tqdm
 from prettytable import PrettyTable
+import pandas as pd
 
 import matplotlib
 matplotlib.use('Agg')
@@ -93,6 +94,7 @@ class TrainEnvironment(PredictEnvironment):
         super().__init__(out_dim=self.out_dim, device=self.device, mode=mode)
 
         self.optimizer = AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-2)
+        self.scheduler = None
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
         self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
         #self.loss = nn.BCEWithLogitsLoss(reduction='none')
@@ -340,11 +342,15 @@ class Trainer:
 
         # accuracy
         accuracies = [0.] * out_dim
+        summary = {}
         for i, l in enumerate(labels):
-            t, p = ys[:, i].astype(np.int), (ys_hat[:, i] > self.env.thresholds[i]).astype(np.int)
-            accuracies[i] = sklm.accuracy_score(t.flatten(), p.flatten(), normalize=True)
+            t, p = ys[:, i].astype(np.int).flatten(), (ys_hat[:, i] > self.env.thresholds[i]).astype(np.int).flatten()
+            accuracies[i] = sklm.accuracy_score(t, p, normalize=True)
+            summary[l] = sklm.confusion_matrix(t, p).ravel().tolist()
         total_accuracy = (np.sum(accuracies) * ys.shape[0]) / ys.size
 
+        df = pd.DataFrame(summary, index=['tn', 'fp', 'fn', 'tp'])
+        logger.info(f"decision result:\n{df}")
         logger.info(f"val epoch {epoch:03d}:  "
                     f"{prefix}accuracy {total_accuracy:.6f}")
 
