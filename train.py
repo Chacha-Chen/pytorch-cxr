@@ -244,7 +244,8 @@ class Trainer:
             #nn.utils.clip_grad_norm_(self.env.model.parameters(), 1e-2)
             self.env.optimizer.step()
 
-            #self.env.scheduler.step(loss.item())
+            if self.env.scheduler is not None:
+                self.env.scheduler.step(loss.item())
 
             t.set_description(f"{tqdm_desc} (loss: {ave_loss.value()[0].item():.4f})")
             t.refresh()
