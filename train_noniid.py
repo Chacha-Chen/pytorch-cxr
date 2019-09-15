@@ -65,11 +65,11 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         #self.stanford_datasets = [stanford_train_set, stanford_test_set]
 
         if train_data == "stanford":
-            self.set_data_loader(self.stanford_datasets, None)
+            self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets])
         elif train_data == "mimic":
-            self.set_data_loader(self.mimic_datasets, None)
+            self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
         else:
-            self.set_data_loader(self.nih_datasets, None)
+            self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
 
         self.labels = [x.lower() for x in self.train_loader.dataset.labels]
         self.out_dim = len(self.labels)
@@ -80,7 +80,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
 
         super().__init__(out_dim=self.out_dim, device=self.device, mode=mode)
 
-        self.optimizer = AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-2)
+        self.optimizer = AdamW(self.model.parameters(), lr=1e-5, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-2)
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
         self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
         #self.loss = nn.BCEWithLogitsLoss(reduction='none')
@@ -88,12 +88,13 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
-    def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=1, num_workers=0):
+    def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=4, num_workers=0):
         num_trainset = 1000
         train_group_id = int(self.rank / len(DATASETS))
         logger.info(f"rank {self.rank} sets {self.train_data} group {train_group_id}")
         trainset = CxrSubset(main_datasets[train_group_id], list(range(num_trainset)))
-        testset = main_datasets[train_group_id + 5]
+        test_group_id = train_group_id + 5
+        testset = main_datasets[test_group_id]
 
         pin_memory = True if self.device.type == 'cuda' else False
         self.train_loader = DataLoader(trainset, batch_size=batch_size, num_workers=num_workers,
@@ -101,7 +102,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         self.test_loader = DataLoader(testset, batch_size=batch_size * 2, num_workers=num_workers,
                                       shuffle=False, pin_memory=pin_memory)
         if xtest_datasets is not None:
-            self.xtest_loaders = [DataLoader(xtest_datasets[-1], batch_size=batch_size * 2, num_workers=num_workers,
+            self.xtest_loaders = [DataLoader(datasets[test_group_id], batch_size=batch_size * 4, num_workers=num_workers,
                                              shuffle=False, pin_memory=pin_memory)
                                   for datasets in xtest_datasets]
         else:
@@ -138,11 +139,11 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         logger.info(f"initialized on {device} as rank {self.rank} of {self.world_size}")
 
         if dataset_id == 0:
-            self.set_data_loader(self.stanford_datasets, None)
+            self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets])
         elif dataset_id == 1:
-            self.set_data_loader(self.mimic_datasets, None)
+            self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
         else: # dataset_id == 2
-            self.set_data_loader(self.nih_datasets, None)
+            self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
 
         #self.model = DistributedDataParallel(self.model, device_ids=[self.device],
         #                                     output_device=self.device, find_unused_parameters=True)
@@ -158,8 +159,8 @@ class NoniidTrainer(Trainer):
         super().__init__(*args, **kwargs)
 
         for i, xtest in enumerate(self.env.xtest_loaders):
-            xtest_percent = len(self.env.xtest.sampler) / len(self.env.xtest.dataset) * 100.
-            logger.info(f"using {len(self.env.xtest.sampler)}/{len(self.env.xtest.dataset)} ({xtest_percent:.1f}%) entries for cross testing {i}")
+            xtest_percent = len(xtest.sampler) / len(xtest.dataset) * 100.
+            logger.info(f"using {len(xtest.sampler)}/{len(xtest.dataset)} ({xtest_percent:.1f}%) entries for cross testing {i}")
 
     def train(self, num_epoch, start_epoch=1):
         if start_epoch > 1:
@@ -169,13 +170,14 @@ class NoniidTrainer(Trainer):
 
         for epoch in range(start_epoch, num_epoch + 1):
             self.train_epoch(epoch)
-            ys, ys_hat = self.test(epoch, self.env.test_loader)
-            self.calculate_metrics(epoch, ys, ys_hat)
-            for i, xtest in enumerate(self.env.xtest_loaders):
-                prefix = f"xtest{i}_"
-                ys, ys_hat = self.test(epoch, xtest, prefix=prefix)
-                self.calculate_metrics(epoch, ys, ys_hat, prefix)
-            self.save()
+            if epoch % 10 == 0:
+                ys, ys_hat = self.test(epoch, self.env.test_loader)
+                self.calculate_metrics(epoch, ys, ys_hat)
+                for i, xtest in enumerate(self.env.xtest_loaders):
+                    prefix = f"xtest{i}_"
+                    ys, ys_hat = self.test(epoch, xtest, prefix=prefix)
+                    self.calculate_metrics(epoch, ys, ys_hat, prefix)
+                self.save()
 
     def cross_test_only(self, num_epoch, start_epoch=1):
         self.load()
