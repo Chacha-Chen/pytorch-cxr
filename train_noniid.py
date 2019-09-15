@@ -139,11 +139,11 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         logger.info(f"initialized on {device} as rank {self.rank} of {self.world_size}")
 
         if dataset_id == 0:
-            self.set_data_loader(self.stanford_datasets, None)
+            self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets])
         elif dataset_id == 1:
-            self.set_data_loader(self.mimic_datasets, None)
+            self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
         else: # dataset_id == 2
-            self.set_data_loader(self.nih_datasets, None)
+            self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
 
         #self.model = DistributedDataParallel(self.model, device_ids=[self.device],
         #                                     output_device=self.device, find_unused_parameters=True)
@@ -159,8 +159,8 @@ class NoniidTrainer(Trainer):
         super().__init__(*args, **kwargs)
 
         for i, xtest in enumerate(self.env.xtest_loaders):
-            xtest_percent = len(self.env.xtest.sampler) / len(self.env.xtest.dataset) * 100.
-            logger.info(f"using {len(self.env.xtest.sampler)}/{len(self.env.xtest.dataset)} ({xtest_percent:.1f}%) entries for cross testing {i}")
+            xtest_percent = len(xtest.sampler) / len(xtest.dataset) * 100.
+            logger.info(f"using {len(xtest.sampler)}/{len(xtest.dataset)} ({xtest_percent:.1f}%) entries for cross testing {i}")
 
     def train(self, num_epoch, start_epoch=1):
         if start_epoch > 1:
@@ -170,13 +170,14 @@ class NoniidTrainer(Trainer):
 
         for epoch in range(start_epoch, num_epoch + 1):
             self.train_epoch(epoch)
-            ys, ys_hat = self.test(epoch, self.env.test_loader)
-            self.calculate_metrics(epoch, ys, ys_hat)
-            for i, xtest in enumerate(self.env.xtest_loaders):
-                prefix = f"xtest{i}_"
-                ys, ys_hat = self.test(epoch, xtest, prefix=prefix)
-                self.calculate_metrics(epoch, ys, ys_hat, prefix)
-            self.save()
+            if epoch % 10 == 0:
+                ys, ys_hat = self.test(epoch, self.env.test_loader)
+                self.calculate_metrics(epoch, ys, ys_hat)
+                for i, xtest in enumerate(self.env.xtest_loaders):
+                    prefix = f"xtest{i}_"
+                    ys, ys_hat = self.test(epoch, xtest, prefix=prefix)
+                    self.calculate_metrics(epoch, ys, ys_hat, prefix)
+                self.save()
 
     def cross_test_only(self, num_epoch, start_epoch=1):
         self.load()
