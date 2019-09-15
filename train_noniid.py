@@ -65,11 +65,14 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         #self.stanford_datasets = [stanford_train_set, stanford_test_set]
 
         if train_data == "stanford":
-            self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets])
+            #self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets])
+            self.set_data_loader(self.stanford_datasets, None)
         elif train_data == "mimic":
-            self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
+            #self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
+            self.set_data_loader(self.mimic_datasets, None)
         else:
-            self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
+            #self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
+            self.set_data_loader(self.nih_datasets, None)
 
         self.labels = [x.lower() for x in self.train_loader.dataset.labels]
         self.out_dim = len(self.labels)
@@ -101,7 +104,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         pin_memory = True if self.device.type == 'cuda' else False
         self.train_loader = DataLoader(trainset, batch_size=batch_size, num_workers=num_workers,
                                        shuffle=True, pin_memory=pin_memory)
-        self.test_loader = DataLoader(testset, batch_size=batch_size * 2, num_workers=num_workers,
+        self.test_loader = DataLoader(testset, batch_size=batch_size * 4, num_workers=num_workers,
                                       shuffle=False, pin_memory=pin_memory)
         if xtest_datasets is not None:
             self.xtest_loaders = [DataLoader(datasets[test_group_id], batch_size=batch_size * 4, num_workers=num_workers,
@@ -141,11 +144,14 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         logger.info(f"initialized on {device} as rank {self.rank} of {self.world_size}")
 
         if dataset_id == 0:
-            self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets])
+            #self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets])
+            self.set_data_loader(self.stanford_datasets, None)
         elif dataset_id == 1:
-            self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
+            #self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
+            self.set_data_loader(self.mimic_datasets, None)
         else: # dataset_id == 2
-            self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
+            #self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
+            self.set_data_loader(self.nih_datasets, None)
 
         #self.model = DistributedDataParallel(self.model, device_ids=[self.device],
         #                                     output_device=self.device, find_unused_parameters=True)
