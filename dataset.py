@@ -105,7 +105,7 @@ def fetch_image(img_path):
     return image
 
 
-def get_image(img_path, transforms, use_memcache=True):
+def get_image(img_path, transforms, use_memcache=False):
     if use_memcache:
         image = fetch_image(img_path)
     else:
@@ -132,7 +132,7 @@ def get_study(img_paths, orients, transforms):
     image_tensor = torch.cat(tensors, dim=0)
     return image_tensor
 """
-def get_study(img_paths, transforms, use_memcache=True):
+def get_study(img_paths, transforms, use_memcache=False):
     image_tensor = torch.randn(MAX_CHS, MIN, MIN) * STDEV + MEAN
     for i, img_path in enumerate(img_paths):
         if use_memcache:

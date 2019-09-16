@@ -56,23 +56,23 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
 
         nih_set = CxrDataset(NIH_CXR_BASE, "Data_Entry_2017.csv", num_labels=5, mode=mode)
 
-        set_splits = [100000, 10000]
+        #set_splits = [100000, 10000]
 
-        self.stanford_datasets = cxr_random_split(stanford_set, set_splits)
-        self.mimic_datasets = cxr_random_split(mimic_set, set_splits)
-        self.nih_datasets = cxr_random_split(nih_set, set_splits)
+        self.stanford_datasets = cxr_random_split(stanford_set, [175000, 10000])
+        self.mimic_datasets = cxr_random_split(mimic_set, [200000, 10000])
+        self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
 
         #self.stanford_datasets = [stanford_train_set, stanford_test_set]
 
         if train_data == "stanford":
             #self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets])
-            self.set_data_loader(self.stanford_datasets, None)
+            self.set_data_loader(self.stanford_datasets, None, batch_size=7)
         elif train_data == "mimic":
             #self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
-            self.set_data_loader(self.mimic_datasets, None)
+            self.set_data_loader(self.mimic_datasets, None, batch_size=8)
         else:
             #self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
-            self.set_data_loader(self.nih_datasets, None)
+            self.set_data_loader(self.nih_datasets, None, batch_size=4)
 
         self.labels = [x.lower() for x in self.train_loader.dataset.labels]
         self.out_dim = len(self.labels)
@@ -93,7 +93,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
-    def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=4, num_workers=0):
+    def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=6, num_workers=0):
         #num_trainset = 100000
         train_group_id = int(self.rank / len(DATASETS))
         logger.info(f"rank {self.rank} sets {self.train_data} group {train_group_id}")
@@ -146,13 +146,13 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
 
         if dataset_id == 0:
             #self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets])
-            self.set_data_loader(self.stanford_datasets, None)
+            self.set_data_loader(self.stanford_datasets, None, batch_size=7)
         elif dataset_id == 1:
             #self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
-            self.set_data_loader(self.mimic_datasets, None)
+            self.set_data_loader(self.mimic_datasets, None, batch_size=8)
         else: # dataset_id == 2
             #self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
-            self.set_data_loader(self.nih_datasets, None)
+            self.set_data_loader(self.nih_datasets, None, batch_size=4)
 
         #self.model = DistributedDataParallel(self.model, device_ids=[self.device],
         #                                     output_device=self.device, find_unused_parameters=True)
@@ -179,14 +179,14 @@ class NoniidTrainer(Trainer):
 
         for epoch in range(start_epoch, num_epoch + 1):
             self.train_epoch(epoch)
-            if epoch % 10 == 0:
-                ys, ys_hat = self.test(epoch, self.env.test_loader)
-                self.calculate_metrics(epoch, ys, ys_hat)
-                for i, xtest in enumerate(self.env.xtest_loaders):
-                    prefix = f"xtest{i}_"
-                    ys, ys_hat = self.test(epoch, xtest, prefix=prefix)
-                    self.calculate_metrics(epoch, ys, ys_hat, prefix)
-                self.save()
+            #if epoch % 10 == 0:
+            ys, ys_hat = self.test(epoch, self.env.test_loader)
+            self.calculate_metrics(epoch, ys, ys_hat)
+            for i, xtest in enumerate(self.env.xtest_loaders):
+                prefix = f"xtest{i}_"
+                ys, ys_hat = self.test(epoch, xtest, prefix=prefix)
+                self.calculate_metrics(epoch, ys, ys_hat, prefix)
+            self.save()
 
     def cross_test_only(self, num_epoch, start_epoch=1):
         self.load()
