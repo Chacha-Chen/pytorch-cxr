@@ -6,7 +6,7 @@ export NCCL_DEBUG=INFO
 export MASTER_ADDR="172.19.2.106"
 export MASTER_PORT="12345"
 
-runtime_dir="20190915_noniid_max_dist_rank3"
+runtime_dir="20190916_noniid_max_dist_rank3_per_image"
 
 python -m torch.distributed.launch \
   --nnodes 1 \
