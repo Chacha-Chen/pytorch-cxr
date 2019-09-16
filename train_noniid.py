@@ -56,7 +56,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
 
         nih_set = CxrDataset(NIH_CXR_BASE, "Data_Entry_2017.csv", num_labels=5, mode=mode)
 
-        set_splits = [10000] * 11
+        set_splits = [100000, 10000]
 
         self.stanford_datasets = cxr_random_split(stanford_set, set_splits)
         self.mimic_datasets = cxr_random_split(mimic_set, set_splits)
@@ -94,11 +94,12 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
     def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=4, num_workers=0):
-        num_trainset = 1000
+        #num_trainset = 100000
         train_group_id = int(self.rank / len(DATASETS))
         logger.info(f"rank {self.rank} sets {self.train_data} group {train_group_id}")
-        trainset = CxrSubset(main_datasets[train_group_id], list(range(num_trainset)))
-        test_group_id = train_group_id + 5
+        #trainset = CxrSubset(main_datasets[train_group_id], list(range(num_trainset)))
+        trainset = main_datasets[train_group_id]
+        test_group_id = train_group_id + 1
         testset = main_datasets[test_group_id]
 
         pin_memory = True if self.device.type == 'cuda' else False
