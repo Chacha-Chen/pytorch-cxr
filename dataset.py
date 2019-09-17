@@ -27,7 +27,7 @@ NIH_CXR_BASE = CXR_BASE.joinpath("nih/v1").resolve()
 
 MODES = ["per_image", "per_study"]
 MIN = 320
-MAX_CHS = 20
+MAX_CHS = 11
 
 
 def _load_manifest(file_path, num_labels=14, mode="per_study"):
@@ -133,7 +133,8 @@ def get_study(img_paths, orients, transforms):
     return image_tensor
 """
 def get_study(img_paths, transforms, use_memcache=False):
-    image_tensor = torch.randn(MAX_CHS, MIN, MIN) * STDEV + MEAN
+    #image_tensor = torch.randn(MAX_CHS, MIN, MIN) * STDEV + MEAN
+    image_tensor = torch.zeros((MAX_CHS, MIN, MIN))
     for i, img_path in enumerate(img_paths):
         if use_memcache:
             image = fetch_image(img_path)
@@ -141,8 +142,8 @@ def get_study(img_paths, transforms, use_memcache=False):
             image = imageio.imread(img_path, as_gray=True)
         imgs = transforms(image)
         image_tensor[i, :, :] = transforms(image)
-    if transforms == cxr_train_transforms:
-        image_tensor = image_tensor[torch.randperm(MAX_CHS), :, :]
+    #if transforms == cxr_train_transforms:
+    #    image_tensor = image_tensor[torch.randperm(MAX_CHS), :, :]
     return image_tensor
 
 
@@ -170,14 +171,16 @@ class CxrDataset(Dataset):
             img_paths, label = get_entries(index)
             image_tensor = get_image(img_paths[0], CxrDataset.transforms)
             target_tensor = torch.FloatTensor(label)
+            input_length = 1
         elif self.mode == "per_study":
             img_paths, label = get_entries(index)
             image_tensor = get_study(img_paths, CxrDataset.transforms)
             target_tensor = torch.FloatTensor(label)
+            input_length = len(img_paths)
         else:
             raise RuntimeError
 
-        return image_tensor, target_tensor
+        return image_tensor, target_tensor, input_length
 
     def __len__(self):
         return len(self.entries)
