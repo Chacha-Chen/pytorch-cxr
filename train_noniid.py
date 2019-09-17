@@ -44,7 +44,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         self.local_rank = 0
         self.rank = 0
 
-        mode = "per_image"
+        mode = "per_study"
         stanford_train_set = CxrDataset(STANFORD_CXR_BASE, "train.csv", num_labels=5, mode=mode)
         stanford_test_set = CxrDataset(STANFORD_CXR_BASE, "valid.csv", num_labels=5, mode=mode)
 
@@ -65,14 +65,14 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         #self.stanford_datasets = [stanford_train_set, stanford_test_set]
 
         if train_data == "stanford":
-            #self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets])
-            self.set_data_loader(self.stanford_datasets, None, batch_size=7)
+            self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets], batch_size=7)
+            #self.set_data_loader(self.stanford_datasets, None, batch_size=7)
         elif train_data == "mimic":
-            #self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
-            self.set_data_loader(self.mimic_datasets, None, batch_size=8)
+            self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets], batch_size=8)
+            #self.set_data_loader(self.mimic_datasets, None, batch_size=8)
         else:
-            #self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
-            self.set_data_loader(self.nih_datasets, None, batch_size=4)
+            self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets], batch_size=4)
+            #self.set_data_loader(self.nih_datasets, None, batch_size=4)
 
         self.labels = [x.lower() for x in self.train_loader.dataset.labels]
         self.out_dim = len(self.labels)
