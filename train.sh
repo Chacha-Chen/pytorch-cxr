@@ -18,4 +18,5 @@ python -m torch.distributed.launch \
   --cuda 0 \
   --runtime-dir $runtime_dir \
   --tensorboard \
+  --start-epoch 2 \
   --ignore-repo-dirty

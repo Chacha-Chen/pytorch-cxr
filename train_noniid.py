@@ -65,14 +65,14 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         #self.stanford_datasets = [stanford_train_set, stanford_test_set]
 
         if train_data == "stanford":
-            #self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets])
-            self.set_data_loader(self.stanford_datasets, None, batch_size=7)
+            self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets], batch_size=7)
+            #self.set_data_loader(self.stanford_datasets, None, batch_size=7)
         elif train_data == "mimic":
-            #self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
-            self.set_data_loader(self.mimic_datasets, None, batch_size=12)
+            self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets], batch_size=12)
+            #self.set_data_loader(self.mimic_datasets, None, batch_size=12)
         else:
-            #self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
-            self.set_data_loader(self.nih_datasets, None, batch_size=3)
+            self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets], batch_size=3)
+            #self.set_data_loader(self.nih_datasets, None, batch_size=3)
 
         self.labels = [x.lower() for x in self.train_loader.dataset.labels]
         self.out_dim = len(self.labels)
@@ -145,14 +145,14 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         logger.info(f"initialized on {device} as rank {self.rank} of {self.world_size}")
 
         if dataset_id == 0:
-            #self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets])
-            self.set_data_loader(self.stanford_datasets, None, batch_size=7)
+            self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets], batch_size=7)
+            #self.set_data_loader(self.stanford_datasets, None, batch_size=7)
         elif dataset_id == 1:
-            #self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
-            self.set_data_loader(self.mimic_datasets, None, batch_size=12)
+            self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets], batch_size=12)
+            #self.set_data_loader(self.mimic_datasets, None, batch_size=12)
         else: # dataset_id == 2
-            #self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
-            self.set_data_loader(self.nih_datasets, None, batch_size=3)
+            self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets], batch_size=3)
+            #self.set_data_loader(self.nih_datasets, None, batch_size=3)
 
         #self.model = DistributedDataParallel(self.model, device_ids=[self.device],
         #                                     output_device=self.device, find_unused_parameters=True)
