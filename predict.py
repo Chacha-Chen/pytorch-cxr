@@ -57,17 +57,17 @@ class Predictor:
         img_paths = [list(Path(study_dir).rglob(f)) for f in img_files]
         img_paths = [p for l in img_paths for p in l]
         image_tensor = get_study(img_paths, None, cxr_test_transforms, use_memcache=False)
-        return image_tensor
+        return image_tensor, len(img_paths)
 
     def get_image_input(self, img_file):
         image_tensor = get_image(img_file, cxr_test_transforms, use_memcache=False)
-        return image_tensor
+        return image_tensor, 1
 
     def predict(self, input_path):
         if self.env.mode == "per_study":
-            x = self.get_study_input(input_path)
+            x, n = self.get_study_input(input_path)
         else:
-            x = self.get_image_input(input_path)
+            x, n = self.get_image_input(input_path)
 
         #img = x[0, :, :].squeeze()
         #plt.imshow(img.squeeze(), cmap="gray", interpolation='none')
@@ -78,7 +78,7 @@ class Predictor:
         self.env.model.eval()
         with torch.no_grad():
             x = x.to(self.env.device)
-            output = self.env.model(x)
+            output = self.env.model(x, n)
         return output
 
 

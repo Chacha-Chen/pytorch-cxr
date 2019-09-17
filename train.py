@@ -229,10 +229,10 @@ class Trainer:
         t = tqdm(enumerate(train_loader), total=len(train_loader), desc=tqdm_desc,
                  dynamic_ncols=True, position=tqdm_pos)
 
-        for batch_idx, (data, target) in t:
+        for batch_idx, (data, target, input_length) in t:
             data, target = data.to(self.env.device), target.to(self.env.device)
             self.env.optimizer.zero_grad()
-            output = self.env.model(data)
+            output = self.env.model(data, input_length)
             losses = self.env.loss(output, target).mean(dim=0)
             loss = losses.mean()
             for a, l in zip(ave_losses, losses):
@@ -299,9 +299,9 @@ class Trainer:
             ys_hat = np.empty(shape=[0, out_dim])
             ys = np.empty(shape=[0, out_dim])
 
-            for batch_idx, (data, target) in t:
+            for batch_idx, (data, target, input_length) in t:
                 data, target = data.to(self.env.device), target.to(self.env.device)
-                output = self.env.model(data)
+                output = self.env.model(data, input_length)
 
                 ys = np.append(ys, target.cpu().numpy(), axis=0)
                 ys_hat = np.append(ys_hat, output.cpu().numpy(), axis=0)

@@ -58,9 +58,9 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
 
         #set_splits = [100000, 10000]
 
-        self.stanford_datasets = cxr_random_split(stanford_set, [210000, 10000])
-        self.mimic_datasets = cxr_random_split(mimic_set, [360000, 10000])
-        self.nih_datasets = cxr_random_split(nih_set, [90000, 10000])
+        self.stanford_datasets = cxr_random_split(stanford_set, [175000, 10000])
+        self.mimic_datasets = cxr_random_split(mimic_set, [200000, 10000])
+        self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
 
         #self.stanford_datasets = [stanford_train_set, stanford_test_set]
 
@@ -69,10 +69,10 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
             self.set_data_loader(self.stanford_datasets, None, batch_size=7)
         elif train_data == "mimic":
             #self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
-            self.set_data_loader(self.mimic_datasets, None, batch_size=12)
+            self.set_data_loader(self.mimic_datasets, None, batch_size=8)
         else:
             #self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
-            self.set_data_loader(self.nih_datasets, None, batch_size=3)
+            self.set_data_loader(self.nih_datasets, None, batch_size=4)
 
         self.labels = [x.lower() for x in self.train_loader.dataset.labels]
         self.out_dim = len(self.labels)
@@ -149,14 +149,14 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
             self.set_data_loader(self.stanford_datasets, None, batch_size=7)
         elif dataset_id == 1:
             #self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets])
-            self.set_data_loader(self.mimic_datasets, None, batch_size=12)
+            self.set_data_loader(self.mimic_datasets, None, batch_size=8)
         else: # dataset_id == 2
             #self.set_data_loader(self.nih_datasets, [self.stanford_datasets, self.mimic_datasets])
-            self.set_data_loader(self.nih_datasets, None, batch_size=3)
+            self.set_data_loader(self.nih_datasets, None, batch_size=4)
 
-        #self.model = DistributedDataParallel(self.model, device_ids=[self.device],
-        #                                     output_device=self.device, find_unused_parameters=True)
-        self.model.to_distributed(self.device)
+        self.model = DistributedDataParallel(self.model, device_ids=[self.device],
+                                             output_device=self.device, find_unused_parameters=True)
+        #self.model.to_distributed(self.device)
 
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
         self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
