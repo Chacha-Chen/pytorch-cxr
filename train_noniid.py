@@ -105,10 +105,10 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         pin_memory = True if self.device.type == 'cuda' else False
         self.train_loader = DataLoader(trainset, batch_size=batch_size, num_workers=num_workers,
                                        shuffle=True, pin_memory=pin_memory)
-        self.test_loader = DataLoader(testset, batch_size=batch_size * 4, num_workers=num_workers,
+        self.test_loader = DataLoader(testset, batch_size=batch_size * 2, num_workers=num_workers,
                                       shuffle=False, pin_memory=pin_memory)
         if xtest_datasets is not None:
-            self.xtest_loaders = [DataLoader(datasets[test_group_id], batch_size=batch_size * 4, num_workers=num_workers,
+            self.xtest_loaders = [DataLoader(datasets[test_group_id], batch_size=batch_size * 2, num_workers=num_workers,
                                              shuffle=False, pin_memory=pin_memory)
                                   for datasets in xtest_datasets]
         else:
