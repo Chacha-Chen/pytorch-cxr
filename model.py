@@ -90,23 +90,25 @@ class WindowOptimizer(nn.Module):
 
 class CustomBlock(nn.Module):
 
-    def __init__(self, hidden=512, out_dim=14):
+    def __init__(self, hidden=128):
         super().__init__()
-        self.custom = nn.Sequential(OrderedDict([
-                #('bn0', nn.BatchNorm1d(num_fc_neurons)),
-                ('do0', nn.Dropout(0.5)),
+        self.block0 = nn.Sequential(OrderedDict([
+                ('bn0', nn.BatchNorm1d(hidden)),
+                #('do0', nn.Dropout(0.5)),
                 ('fc0', nn.Linear(hidden, hidden)),
-                ('rl0', nn.ReLU()),
-                #('bn1', nn.BatchNorm1d(num_fc_neurons)),
-                ('do1', nn.Dropout(0.5)),
+                ('rl0', nn.ReLU())
+        ]))
+        self.block1 = nn.Sequential(OrderedDict([
+                ('bn1', nn.BatchNorm1d(hidden)),
+                #('do1', nn.Dropout(0.5)),
                 ('fc1', nn.Linear(hidden, hidden)),
                 ('rl1', nn.ReLU()),
         ]))
 
     def forward(self, x):
-        y = self.custom(x)
-        z = x + y
-        return z
+        y = self.block0(x)
+        y = self.block1(x)
+        return x
 
 class Network(nn.Module):
 
@@ -118,23 +120,22 @@ class Network(nn.Module):
         #self.main = tvm.resnext101_32x8d(pretrained=True)
         #self.main.conv1 = nn.Conv2d(20, 64, kernel_size=7, stride=2, padding=3, bias=False)
         #self.main.fc = nn.Linear(self.main.fc.in_features, out_dim)
-        self.num_fc_neurons = 512
-        #self.main = tvm.densenet121(pretrained=False, drop_rate=0.5, num_classes=self.num_fc_neurons)
-        self.main = tvm.densenet121(pretrained=False, drop_rate=0, num_classes=self.num_fc_neurons)
+        num_hidden = 128
+        #self.main = tvm.densenet121(pretrained=False, drop_rate=0.5, num_classes=self.num_hidden)
+        self.main = tvm.densenet121(pretrained=False, drop_rate=0, num_classes=num_hidden)
         self.main.features.conv0 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
         #self.mode = mode
 
         #self.custom = nn.ModuleList([
         #    nn.Sequential(OrderedDict([
-        #        ('cb', CustomBlock(hidden=self.num_fc_neurons)),
-        #        #('bn2', nn.BatchNorm1d(self.num_fc_neurons)),
-        #        ('do', nn.Dropout(0.5)),
-        #        ('fc', nn.Linear(self.num_fc_neurons, 1)),
+        #        ('cb0', CustomBlock(hidden=num_hidden)),
+        #        #('do0', nn.Dropout(0.5)),
+        #        ('fc1', nn.Linear(num_hidden, 1)),
         #    ]))
         #    for _ in range(out_dim)
         #])
 
-        self.custom = nn.Linear(self.num_fc_neurons, out_dim)
+        self.custom = nn.Linear(num_hidden, out_dim)
 
     def to_distributed(self, device):
         #modules = self.main.features.__dict__.get('_modules')
@@ -153,12 +154,14 @@ class Network(nn.Module):
                                             find_unused_parameters=True)
 
     def forward(self, x, num_chs):
+        # main
         y = [x[b, :c, :, :] for b, c in enumerate(num_chs)]
         y = torch.cat(y).unsqueeze(dim=1)
         y = self.main(y)
         z = torch.split(y, num_chs.tolist(), dim=0)
         z = torch.cat([t.mean(dim=0, keepdim=True) for t in z])
-        #xs = [m(x) for m in self.custom]
+        # custom
+        #xs = [m(z) for m in self.custom]
         #x = torch.cat(xs, dim=1)
         x = self.custom(z)
         return x
