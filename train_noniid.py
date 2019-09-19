@@ -88,8 +88,8 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         #self.optimizer = optim.SGD(self.model.parameters(), lr=1e-3, momentum=0.9, weight_decay=1e-2)
         self.scheduler = None
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        #self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
@@ -160,8 +160,8 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         #self.model.to_distributed(self.device)
 
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        #self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
 class NoniidTrainer(Trainer):
 
