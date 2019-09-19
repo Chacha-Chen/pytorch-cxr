@@ -1,7 +1,7 @@
 #!/bin/bash -l
 
 dataset="stanford"
-runtime_dir="20190918_noniid_max_single_stanford_per_study_custom"
+runtime_dir="20190919_noniid_max_single_stanford_per_study_custom"
 
 rm -rf runtime/$runtime_dir
 

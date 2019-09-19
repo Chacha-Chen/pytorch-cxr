@@ -65,7 +65,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         #self.stanford_datasets = [stanford_train_set, stanford_test_set]
 
         if train_data == "stanford":
-            self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets], batch_size=7)
+            self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets], batch_size=16)
             #self.set_data_loader(self.stanford_datasets, None, batch_size=7)
         elif train_data == "mimic":
             self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets], batch_size=8)
@@ -95,11 +95,11 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
     def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=6, num_workers=0):
-        #num_trainset = 100000
+        num_trainset = 20000
         train_group_id = int(self.rank / len(DATASETS))
         logger.info(f"rank {self.rank} sets {self.train_data} group {train_group_id}")
-        #trainset = CxrSubset(main_datasets[train_group_id], list(range(num_trainset)))
-        trainset = main_datasets[train_group_id]
+        trainset = CxrSubset(main_datasets[train_group_id], list(range(num_trainset)))
+        #trainset = main_datasets[train_group_id]
         test_group_id = train_group_id + 1
         testset = main_datasets[test_group_id]
 
