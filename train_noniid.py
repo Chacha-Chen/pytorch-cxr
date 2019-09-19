@@ -65,7 +65,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         #self.stanford_datasets = [stanford_train_set, stanford_test_set]
 
         if train_data == "stanford":
-            self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets], batch_size=7)
+            self.set_data_loader(self.stanford_datasets, [self.mimic_datasets, self.nih_datasets], batch_size=16)
             #self.set_data_loader(self.stanford_datasets, None, batch_size=7)
         elif train_data == "mimic":
             self.set_data_loader(self.mimic_datasets, [self.stanford_datasets, self.nih_datasets], batch_size=8)
@@ -88,18 +88,18 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         #self.optimizer = optim.SGD(self.model.parameters(), lr=1e-3, momentum=0.9, weight_decay=1e-2)
         self.scheduler = None
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        #self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
     def set_data_loader(self, main_datasets, xtest_datasets=None, batch_size=6, num_workers=0):
-        #num_trainset = 100000
+        num_trainset = 20000
         train_group_id = int(self.rank / len(DATASETS))
         logger.info(f"rank {self.rank} sets {self.train_data} group {train_group_id}")
-        #trainset = CxrSubset(main_datasets[train_group_id], list(range(num_trainset)))
-        trainset = main_datasets[train_group_id]
+        trainset = CxrSubset(main_datasets[train_group_id], list(range(num_trainset)))
+        #trainset = main_datasets[train_group_id]
         test_group_id = train_group_id + 1
         testset = main_datasets[test_group_id]
 
@@ -160,8 +160,8 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         #self.model.to_distributed(self.device)
 
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        #self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
 class NoniidTrainer(Trainer):
 

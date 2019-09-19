@@ -95,7 +95,7 @@ class CustomBlock(nn.Module):
         super().__init__()
         self.blocks = nn.ModuleList([
             nn.Sequential(OrderedDict([
-                #('bn0', nn.BatchNorm1d(hidden)),
+                ('bn0', nn.BatchNorm1d(hidden)),
                 #('do0', nn.Dropout(0.5)),
                 ('fc0', nn.Linear(hidden, hidden)),
                 ('rl0', nn.ReLU())
@@ -164,7 +164,7 @@ class Network(nn.Module):
         y = self.main(y)
         y = F.softmax(y, dim=1)
         z = torch.split(y, num_chs.tolist(), dim=0)
-        z = torch.cat([t.max(dim=0, keepdim=True)[0] for t in z])
+        z = torch.cat([t.mean(dim=0, keepdim=True) for t in z])
         # custom
         #xs = [m(z) for m in self.custom]
         #x = torch.cat(xs, dim=1)
