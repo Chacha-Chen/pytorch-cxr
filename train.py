@@ -64,27 +64,40 @@ class TrainEnvironment(PredictEnvironment):
         self.rank = 0
 
         mode = "per_study"
-        stanford_train_set = CxrDataset(STANFORD_CXR_BASE, "train.csv", mode=mode)
-        stanford_test_set = CxrDataset(STANFORD_CXR_BASE, "valid.csv", mode=mode)
+        stanford_train_set = CxrDataset(STANFORD_CXR_BASE, "train.csv", num_labels=5, mode=mode)
+        stanford_test_set = CxrDataset(STANFORD_CXR_BASE, "valid.csv", num_labels=5, mode=mode)
+        stanford_set = CxrConcatDataset([stanford_train_set, stanford_test_set])
 
-        #mimic_train_set = CxrDataset(MIMIC_CXR_BASE, "train.csv", mode=mode)
-        #mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", mode=mode)
+        mimic_train_set = CxrDataset(MIMIC_CXR_BASE, "train.csv", num_labels=5, mode=mode)
+        mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", num_labels=5, mode=mode)
+        mimic_set = CxrConcatDataset([mimic_train_set, mimic_test_set])
 
-        #concat_set = CxrConcatDataset([stanford_train_set, stanford_test_set, mimic_train_set, mimic_test_set])
+        nih_set = CxrDataset(NIH_CXR_BASE, "Data_Entry_2017.csv", num_labels=5, mode=mode)
+
+        self.stanford_datasets = cxr_random_split(stanford_set, [175000, 10000])
+        self.mimic_datasets = cxr_random_split(mimic_set, [200000, 10000])
+        self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
+
+        train_set = CxrConcatDataset([self.stanford_datasets[0], self.mimic_datasets[0], self.nih_datasets[0]])
+        partial_train_set = CxrSubset(train_set, list(range(60000)))
+        test_sets = [self.stanford_datasets[1], self.mimic_datasets[1], self.nih_datasets[1]]
+
+
         #concat_set = CxrConcatDataset([stanford_train_set, stanford_test_set])
-
-        #datasets = cxr_random_split(concat_set, [360000, 15000])
+        #datasets = cxr_random_split(concat_set, [300000, 10000])
         #datasets = cxr_random_split(concat_set, [400, 200])
         #subset = Subset(concat_set, range(0, 36))
         #datasets = random_split(subset, [len(subset) - 12, 12])
-
-        datasets = [stanford_train_set, stanford_test_set]
+        #datasets = [stanford_train_set, stanford_test_set]
 
         pin_memory = True if self.device.type == 'cuda' else False
-        self.train_loader = DataLoader(datasets[0], batch_size=32, num_workers=8, shuffle=True, pin_memory=pin_memory)
-        self.test_loader = DataLoader(datasets[1], batch_size=32, num_workers=8, shuffle=False, pin_memory=pin_memory)
+        self.train_loader = DataLoader(partial_train_set, batch_size=2, num_workers=0, shuffle=True, pin_memory=pin_memory)
+        self.test_loaders = [
+            DataLoader(test_set, batch_size=8, num_workers=0, shuffle=False, pin_memory=pin_memory)
+            for test_set in test_sets
+        ]
 
-        self.labels = [x.lower() for x in datasets[0].labels]
+        self.labels = [x.lower() for x in train_set.labels]
         self.out_dim = len(self.labels)
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
 
@@ -96,8 +109,8 @@ class TrainEnvironment(PredictEnvironment):
         self.optimizer = AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-2)
         self.scheduler = None
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        #self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
@@ -151,8 +164,8 @@ class DistributedTrainEnvironment(TrainEnvironment):
         #                              shuffle=False, pin_memory=pin_memory)
 
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        #self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
 class Trainer:
 
@@ -172,9 +185,10 @@ class Trainer:
         self.metrics = {}
 
         train_set_percent = len(self.env.train_loader.sampler) / len(self.env.train_loader.dataset) * 100.
-        test_set_percent = len(self.env.test_loader.sampler) / len(self.env.test_loader.dataset) * 100.
         logger.info(f"using {len(self.env.train_loader.sampler)}/{len(self.env.train_loader.dataset)} ({train_set_percent:.1f}%) entries for training")
-        logger.info(f"using {len(self.env.test_loader.sampler)}/{len(self.env.test_loader.dataset)} ({test_set_percent:.1f}%) entries for testing")
+        for i, test_loader in enumerate(self.env.test_loaders):
+            test_set_percent = len(test_loader.sampler) / len(test_loader.dataset) * 100.
+            logger.info(f"using {len(test_loader.sampler)}/{len(test_loader.dataset)} ({test_set_percent:.1f}%) entries for testing")
 
     def add_metric(self, keystr, point):
         keys = keystr.split('/')
@@ -201,8 +215,10 @@ class Trainer:
 
         for epoch in range(start_epoch, num_epoch + 1):
             self.train_epoch(epoch)
-            ys, ys_hat = self.test(epoch, self.env.test_loader)
-            self.calculate_metrics(epoch, ys, ys_hat)
+            for i, test_loader in enumerate(self.env.test_loaders):
+                prefix = f"test{i}_"
+                ys, ys_hat = self.test(epoch, test_loader, prefix=prefix)
+                self.calculate_metrics(epoch, ys, ys_hat, prefix)
             self.save()
 
     def train_epoch(self, epoch, ckpt=False):
