@@ -6,6 +6,7 @@ simplefilter(action='ignore', category=FutureWarning)
 import numpy as np
 from tqdm import tqdm
 from prettytable import PrettyTable
+import pandas as pd
 
 import matplotlib
 matplotlib.use('Agg')
@@ -29,9 +30,9 @@ import sklearn.metrics as sklm
 from apex import amp
 
 from utils import logger, print_versions, get_devices, get_ip, get_commit
-from adamw import AdamW
+#from adamw import AdamW
 from predict import PredictEnvironment, Predictor
-from dataset import STANFORD_CXR_BASE, MIMIC_CXR_BASE, NIH_CXR_BASE, CxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
+from dataset import StanfordCxrDataset, MitCxrDataset, NihCxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
 
 
 def check_distributed(args):
@@ -43,6 +44,7 @@ def check_distributed(args):
         torch.cuda.set_device(device)
         logger.info(f"waiting other ranks ...")
         dist.init_process_group(backend="nccl", init_method="env://")
+        logger.info(f"set world_size to {dist.get_world_size()}")
         return True, device
 
 
@@ -62,42 +64,69 @@ class TrainEnvironment(PredictEnvironment):
         self.rank = 0
 
         mode = "per_study"
-        stanford_train_set = CxrDataset(STANFORD_CXR_BASE, "train.csv", mode=mode)
-        stanford_test_set = CxrDataset(STANFORD_CXR_BASE, "valid.csv", mode=mode)
 
-        mimic_train_set = CxrDataset(MIMIC_CXR_BASE, "train.csv", mode=mode)
-        mimic_test_set = CxrDataset(MIMIC_CXR_BASE, "valid.csv", mode=mode)
+        CLASSES = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
+        stanford_train_set = StanfordCxrDataset("train.csv", mode=mode, classes=CLASSES)
+        stanford_test_set = StanfordCxrDataset("valid.csv", mode=mode, classes=CLASSES)
+        stanford_set = CxrConcatDataset([stanford_train_set, stanford_test_set])
 
-        concat_set = CxrConcatDataset([stanford_train_set, stanford_test_set, mimic_train_set, mimic_test_set])
+        mimic_train_set = MitCxrDataset("train.csv", mode=mode, classes=CLASSES)
+        mimic_test_set = MitCxrDataset("valid.csv", mode=mode, classes=CLASSES)
+        mimic_set = CxrConcatDataset([mimic_train_set, mimic_test_set])
 
-        #datasets = cxr_random_split(concat_set, [360000, 15000])
-        datasets = cxr_random_split(concat_set, [400, 200])
+        CLASSES = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion']
+        nih_set = NihCxrDataset("Data_Entry_2017.csv", mode=mode, classes=CLASSES)
+        nih_set.rename_classes({'Effusion': 'Pleural Effusion'})
+
+        self.stanford_datasets = cxr_random_split(stanford_set, [175000, 10000])
+        self.mimic_datasets = cxr_random_split(mimic_set, [200000, 10000])
+        self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
+
+        train_set = CxrConcatDataset([self.stanford_datasets[0], self.mimic_datasets[0], self.nih_datasets[0]])
+        #partial_train_set = CxrSubset(train_set, torch.randperm(len(train_set)).tolist()[:10])
+        test_sets = [self.stanford_datasets[1], self.mimic_datasets[1], self.nih_datasets[1]]
+
+        #concat_set = CxrConcatDataset([stanford_train_set, stanford_test_set])
+        #datasets = cxr_random_split(concat_set, [300000, 10000])
+        #datasets = cxr_random_split(concat_set, [400, 200])
         #subset = Subset(concat_set, range(0, 36))
         #datasets = random_split(subset, [len(subset) - 12, 12])
+        #datasets = [stanford_train_set, stanford_test_set]
 
         pin_memory = True if self.device.type == 'cuda' else False
-        self.train_loader = DataLoader(datasets[0], batch_size=16, num_workers=8, shuffle=True, pin_memory=pin_memory)
-        self.test_loader = DataLoader(datasets[1], batch_size=16, num_workers=8, shuffle=False, pin_memory=pin_memory)
+        self.train_loader = DataLoader(train_set, batch_size=24, num_workers=4, shuffle=True, pin_memory=pin_memory)
+        self.test_loaders = [
+            DataLoader(test_set, batch_size=64, num_workers=8, shuffle=False, pin_memory=pin_memory)
+            for test_set in test_sets
+        ]
 
-        self.labels = [x.lower() for x in datasets[0].labels]
-        self.out_dim = len(self.labels)
-        self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
+        self.classes = [x.lower() for x in train_set.classes]
+        self.out_dim = len(self.classes)
 
         #img, tar = datasets[0]
         #plt.imshow(img.squeeze(), cmap='gray')
 
         super().__init__(out_dim=self.out_dim, device=self.device, mode=mode)
 
-        self.optimizer = AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-2)
+        self.optimizer = optim.AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-4)
+
+        self.scheduler = None
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+
+        self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
+        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
     def get_positive_weights(self):
-        df = self.train_loader.dataset.get_label_counts()
-        ratio = df.loc[0] / df.loc[1]
+        train_df = self.train_loader.dataset.get_label_counts()
+        logger.info(f"train label counts\n{train_df}")
+        for i, test_loader in enumerate(self.test_loaders):
+            test_df = test_loader.dataset.get_label_counts()
+            logger.info(f"test{i} label counts\n{test_df}")
+        ratio = train_df.loc[0] / train_df.loc[1]
         return ratio.values.tolist()
 
     def load_model(self, filename):
@@ -128,9 +157,6 @@ class DistributedTrainEnvironment(TrainEnvironment):
         self.rank = dist.get_rank()
         logger.info(f"initialized on {device} as rank {self.rank} of {self.world_size}")
 
-        self.model = DistributedDataParallel(self.model, device_ids=[self.device],
-                                             output_device=self.device, find_unused_parameters=True)
-
         pin_memory = True if self.device.type == 'cuda' else False
         self.train_loader = DataLoader(self.train_loader.dataset,
                                        batch_size=self.train_loader.batch_size,
@@ -143,6 +169,13 @@ class DistributedTrainEnvironment(TrainEnvironment):
         #                              sampler=DistributedSampler(self.test_loader.dataset),
         #                              shuffle=False, pin_memory=pin_memory)
 
+        self.model = DistributedDataParallel(self.model, device_ids=[self.device],
+                                             output_device=self.device, find_unused_parameters=True)
+        #self.model.to_distributed(self.device)
+
+        self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
+        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
 class Trainer:
 
@@ -162,9 +195,10 @@ class Trainer:
         self.metrics = {}
 
         train_set_percent = len(self.env.train_loader.sampler) / len(self.env.train_loader.dataset) * 100.
-        test_set_percent = len(self.env.test_loader.sampler) / len(self.env.test_loader.dataset) * 100.
         logger.info(f"using {len(self.env.train_loader.sampler)}/{len(self.env.train_loader.dataset)} ({train_set_percent:.1f}%) entries for training")
-        logger.info(f"using {len(self.env.test_loader.sampler)}/{len(self.env.test_loader.dataset)} ({test_set_percent:.1f}%) entries for testing")
+        for i, test_loader in enumerate(self.env.test_loaders):
+            test_set_percent = len(test_loader.sampler) / len(test_loader.dataset) * 100.
+            logger.info(f"using {len(test_loader.sampler)}/{len(test_loader.dataset)} ({test_set_percent:.1f}%) entries for testing{i}")
 
     def add_metric(self, keystr, point):
         keys = keystr.split('/')
@@ -185,26 +219,31 @@ class Trainer:
         if start_epoch > 1:
             model_path = runtime_path.joinpath(f"model_epoch_{(start_epoch - 1):03d}.{self.env.rank}.pth.tar")
             self.env.load_model(model_path)
-            if self.env.distributed:
-                self.env.train_loader.sampler.set_epoch(start_epoch - 1)
             self.load()
 
         for epoch in range(start_epoch, num_epoch + 1):
+            if self.env.distributed:
+                self.env.train_loader.sampler.set_epoch(epoch)
             self.train_epoch(epoch)
-            ys, ys_hat = self.test(epoch, self.env.test_loader)
-            self.calculate_metrics(epoch, ys, ys_hat)
+            for i, test_loader in enumerate(self.env.test_loaders):
+                prefix = f"test{i}_"
+                ys, ys_hat = self.test(epoch, test_loader, prefix=prefix)
+                self.calculate_metrics(epoch, ys, ys_hat, prefix)
             self.save()
+            if self.env.scheduler is not None:
+                self.env.scheduler.step()
+                logger.info(f"lr = {self.env.scheduler.get_lr()}")
 
     def train_epoch(self, epoch, ckpt=False):
-        labels = self.env.labels
+        classes = self.env.classes
         train_loader = self.env.train_loader
         train_set = train_loader.dataset
 
-        CxrDataset.train()
+        train_set.train()
         self.env.model.train()
 
         ave_len = len(train_loader) // 100 + 1
-        ave_losses = [tnt.meter.MovingAverageValueMeter(ave_len) for _ in labels]
+        ave_losses = [tnt.meter.MovingAverageValueMeter(ave_len) for _ in classes]
         ave_loss = tnt.meter.MovingAverageValueMeter(ave_len)
 
         if ckpt:
@@ -219,10 +258,10 @@ class Trainer:
         t = tqdm(enumerate(train_loader), total=len(train_loader), desc=tqdm_desc,
                  dynamic_ncols=True, position=tqdm_pos)
 
-        for batch_idx, (data, target) in t:
+        for batch_idx, (data, target, channels) in t:
             data, target = data.to(self.env.device), target.to(self.env.device)
             self.env.optimizer.zero_grad()
-            output = self.env.model(data)
+            output = self.env.model(data, channels)
             losses = self.env.loss(output, target).mean(dim=0)
             loss = losses.mean()
             for a, l in zip(ave_losses, losses):
@@ -233,10 +272,8 @@ class Trainer:
                     scaled_loss.backward()
             else:
                 loss.backward()
-            nn.utils.clip_grad_norm_(self.env.model.parameters(), 1e-2)
+            #nn.utils.clip_grad_norm_(self.env.model.parameters(), 1e-2)
             self.env.optimizer.step()
-
-            #self.env.scheduler.step(loss.item())
 
             t.set_description(f"{tqdm_desc} (loss: {ave_loss.value()[0].item():.4f})")
             t.refresh()
@@ -245,7 +282,7 @@ class Trainer:
                 progress += len(data)
                 x = (epoch - 1) + progress / len(train_set)
                 global_step = int(x / ckpt_step)
-                for i, l in enumerate(labels):
+                for i, l in enumerate(classes):
                     self.writer.add_scalar(f"{l}/loss", ave_losses[i].value()[0].item(), global_step=global_step)
                 self.writer.add_scalar("total/loss", ave_loss.value()[0].item(), global_step=global_step)
                 ckpt = next(ckpts)
@@ -256,19 +293,19 @@ class Trainer:
                     f"ave loss {ave_loss.value()[0].item():.6f}")
 
         p = PrettyTable()
-        p.field_names = ["labels", f"loss (ave. {ave_loss.value()[0].item():.6f})"]
-        for i, l in enumerate(labels):
+        p.field_names = ["classes", f"loss (ave. {ave_loss.value()[0].item():.6f})"]
+        for i, l in enumerate(classes):
             p.add_row([l, f"{ave_losses[i].value()[0].item():.6f}"])
         tbl_str = p.get_string()  #title=f"metrics per label")
         logger.info(f"\n{tbl_str}")
 
         if not ckpt and self.tensorboard:
             self.writer.add_scalar("total/loss", ave_loss.value()[0].item(), global_step=epoch)
-            for i, l in enumerate(labels):
+            for i, l in enumerate(classes):
                 self.writer.add_scalar(f"{l}/loss", ave_losses[i].value()[0].item(), global_step=epoch)
 
         self.add_metric('total/loss', (epoch, ave_loss.value()[0].item()))
-        for i, l in enumerate(labels):
+        for i, l in enumerate(classes):
             self.add_metric(f"{l}/loss", (epoch, ave_losses[i].value()[0].item()))
 
         self.env.save_model(self.runtime_path.joinpath(f"model_epoch_{epoch:03d}.{self.env.rank}.pth.tar"))
@@ -276,7 +313,7 @@ class Trainer:
     def test(self, epoch, test_loader, prefix=""):
         out_dim = self.env.out_dim
 
-        CxrDataset.eval()
+        test_loader.dataset.eval()
         self.env.model.eval()
         with torch.no_grad():
             tqdm_desc = f"{prefix}testing [{self.env.rank}]"
@@ -288,28 +325,28 @@ class Trainer:
             ys_hat = np.empty(shape=[0, out_dim])
             ys = np.empty(shape=[0, out_dim])
 
-            for batch_idx, (data, target) in t:
+            for batch_idx, (data, target, channels) in t:
                 data, target = data.to(self.env.device), target.to(self.env.device)
-                output = self.env.model(data)
+                output = self.env.model(data, channels)
 
                 ys = np.append(ys, target.cpu().numpy(), axis=0)
                 ys_hat = np.append(ys_hat, output.cpu().numpy(), axis=0)
 
         return ys, ys_hat
 
-    def calculate_metrics(self, epoch, ys, ys_hat, prefix=""):
+    def calculate_metrics(self, epoch, ys, ys_hat, prefix="", roc=False, prc=False):
         out_dim = self.env.out_dim
-        labels = self.env.labels
+        classes = self.env.classes
 
         # roc and threshold
         selected_tprs = [0.] * out_dim
-        for i, l in enumerate(labels):
+        for i, l in enumerate(classes):
             fprs, tprs, thrs = sklm.roc_curve(ys[:, i], ys_hat[:, i])
             rects = [(1. - w) * h for w, h in zip(fprs, tprs)]
             idx = np.argmax(rects)
             selected_tprs[i] = tprs[idx]
             self.env.thresholds[i] = thrs[idx]
-            if self.tensorboard:
+            if roc and self.tensorboard:
                 fig = plt.figure()
                 ax1 = fig.add_subplot(1, 1, 1)
                 ax1.plot(fprs, tprs, 'b-')
@@ -331,21 +368,25 @@ class Trainer:
 
         # accuracy
         accuracies = [0.] * out_dim
-        for i, l in enumerate(labels):
-            t, p = ys[:, i].astype(np.int), (ys_hat[:, i] > self.env.thresholds[i]).astype(np.int)
-            accuracies[i] = sklm.accuracy_score(t.flatten(), p.flatten(), normalize=True)
+        summary = {}
+        for i, l in enumerate(classes):
+            t, p = ys[:, i].astype(np.int).flatten(), (ys_hat[:, i] > self.env.thresholds[i]).astype(np.int).flatten()
+            accuracies[i] = sklm.accuracy_score(t, p, normalize=True)
+            summary[l] = sklm.confusion_matrix(t, p).ravel().tolist()
         total_accuracy = (np.sum(accuracies) * ys.shape[0]) / ys.size
 
+        df = pd.DataFrame(summary, index=['tn', 'fp', 'fn', 'tp'])
+        logger.info(f"decision result:\n{df}")
         logger.info(f"val epoch {epoch:03d}:  "
                     f"{prefix}accuracy {total_accuracy:.6f}")
 
         if self.tensorboard:
             self.writer.add_scalar(f"total/{prefix}accuracy", total_accuracy, global_step=epoch)
-            for i, l in enumerate(labels):
+            for i, l in enumerate(classes):
                 self.writer.add_scalar(f"{l}/{prefix}accuracy", accuracies[i], global_step=epoch)
 
         self.add_metric(f'total/{prefix}accuracy', (epoch, total_accuracy))
-        for i, l in enumerate(labels):
+        for i, l in enumerate(classes):
             self.add_metric(f'{l}/{prefix}accuracy', (epoch, accuracies[i]))
 
         # auc score
@@ -353,23 +394,26 @@ class Trainer:
         average_auc_score = np.mean(auc_scores)
 
         p = PrettyTable()
-        p.field_names = ["labels", f"accuracy (tot. {total_accuracy:.6f})", f"auc_score (ave. {average_auc_score:.6f})"]
-        for i, l in enumerate(labels):
+        p.field_names = ["classes", f"accuracy (tot. {total_accuracy:.6f})", f"auc_score (ave. {average_auc_score:.6f})"]
+        for i, l in enumerate(classes):
             p.add_row([l, f"{accuracies[i]:.6f}", f"{auc_scores[i]:.6f}"])
         tbl_str = p.get_string()  #title=f"{prefix}metrics per label")
         logger.info(f"\n{tbl_str}")
 
         if self.tensorboard:
             self.writer.add_scalar(f"total/{prefix}average_auc_score", average_auc_score, global_step=epoch)
-            for i, l in enumerate(labels):
+            for i, l in enumerate(classes):
                 self.writer.add_scalar(f"{l}/{prefix}auc_score", auc_scores[i], global_step=epoch)
 
         self.add_metric(f'total/{prefix}auc_score', (epoch, average_auc_score))
-        for i, l in enumerate(labels):
+        for i, l in enumerate(classes):
             self.add_metric(f'{l}/{prefix}auc_score', (epoch, auc_scores[i]))
 
+        if not prc:
+            return
+
         # precision and recall
-        for i, l in enumerate(labels):
+        for i, l in enumerate(classes):
             pcs, rcs, thrs = sklm.precision_recall_curve(ys[:, i], ys_hat[:, i])
             rects = [w * h for w, h in zip(rcs, pcs)]
             idx = np.argmax(rects)
@@ -395,7 +439,7 @@ class Trainer:
             self.add_metric(f'{l}/{prefix}precision_recall_curve', (epoch, (rcs, pcs, thrs)))
 
             t, p = ys[:, i].astype(np.int), (ys_hat[:, i] > self.env.thresholds[i]).astype(np.int)
-            precision, recall, f1_score, support = sklm.precision_recall_fscore_support(t, p, beta=1.0, labels=[1, 0])
+            precision, recall, f1_score, support = sklm.precision_recall_fscore_support(t, p, beta=1.0, classes=[1, 0])
             if self.tensorboard:
                 self.writer.add_scalar(f"{l}/{prefix}precision", precision[0], global_step=epoch)
                 self.writer.add_scalar(f"{l}/{prefix}recall", recall[0], global_step=epoch)
