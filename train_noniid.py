@@ -26,7 +26,7 @@ from apex import amp
 from utils import logger, print_versions, get_devices, get_ip, get_commit
 from predict import PredictEnvironment, Predictor
 from train import Trainer, initialize
-from dataset import STANFORD_CXR_BASE, MIMIC_CXR_BASE, NIH_CXR_BASE, CxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
+from dataset import StanfordCxrDataset, MitCxrDataset, NihCxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
 
 
 DATASETS = ["stanford", "mimic", "nih"]
