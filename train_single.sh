@@ -2,9 +2,9 @@
 
 datamode="noniid_max_single"
 dataset="stanford"
-mode="per_study"
+mode="per_image"
 desc="custom"
-runtime_dir="20190920_${datamode}_${dataset}_${mode}_${desc}"
+runtime_dir="20190922_${datamode}_${dataset}_${mode}_${desc}"
 
 rm -rf runtime/$runtime_dir
 
