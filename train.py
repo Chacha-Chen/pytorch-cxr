@@ -63,7 +63,7 @@ class TrainEnvironment(PredictEnvironment):
         self.local_rank = 0
         self.rank = 0
 
-        mode = "per_study"
+        mode = "per_image"
 
         CLASSES = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
         stanford_train_set = StanfordCxrDataset("train.csv", mode=mode, classes=CLASSES)
@@ -78,9 +78,15 @@ class TrainEnvironment(PredictEnvironment):
         nih_set = NihCxrDataset("Data_Entry_2017.csv", mode=mode, classes=CLASSES)
         nih_set.rename_classes({'Effusion': 'Pleural Effusion'})
 
-        self.stanford_datasets = cxr_random_split(stanford_set, [175000, 10000])
-        self.mimic_datasets = cxr_random_split(mimic_set, [200000, 10000])
-        self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
+        if mode == "per_study":
+            self.stanford_datasets = cxr_random_split(stanford_set, [175000, 10000])
+            self.mimic_datasets = cxr_random_split(mimic_set, [200000, 10000])
+            self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
+        else:
+            self.stanford_datasets = cxr_random_split(stanford_set, [210000, 10000])
+            self.mimic_datasets = cxr_random_split(mimic_set, [360000, 10000])
+            self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
+
 
         train_set = CxrConcatDataset([self.stanford_datasets[0], self.mimic_datasets[0], self.nih_datasets[0]])
         #partial_train_set = CxrSubset(train_set, torch.randperm(len(train_set)).tolist()[:10])
@@ -169,9 +175,9 @@ class DistributedTrainEnvironment(TrainEnvironment):
         #                              sampler=DistributedSampler(self.test_loader.dataset),
         #                              shuffle=False, pin_memory=pin_memory)
 
-        self.model = DistributedDataParallel(self.model, device_ids=[self.device],
-                                             output_device=self.device, find_unused_parameters=True)
-        #self.model.to_distributed(self.device)
+        #self.model = DistributedDataParallel(self.model, device_ids=[self.device],
+        #                                     output_device=self.device, find_unused_parameters=True)
+        self.model.to_distributed(self.device)
 
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
         #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
