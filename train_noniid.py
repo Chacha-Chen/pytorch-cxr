@@ -43,7 +43,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         self.local_rank = 0
         self.rank = 0
 
-        mode = "per_study"
+        mode = "per_image"
 
         CLASSES = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
         stanford_train_set = StanfordCxrDataset("train.csv", mode=mode, classes=CLASSES)
@@ -58,11 +58,14 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         nih_set = NihCxrDataset("Data_Entry_2017.csv", mode=mode, classes=CLASSES)
         nih_set.rename_classes({'Effusion': 'Pleural Effusion'})
 
-        self.stanford_datasets = cxr_random_split(stanford_set, [175000, 10000])
-        self.mimic_datasets = cxr_random_split(mimic_set, [200000, 10000])
-        self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
-
-        test_sets = [self.stanford_datasets[1], self.mimic_datasets[1], self.nih_datasets[1]]
+        if mode == "per_study":
+            self.stanford_datasets = cxr_random_split(stanford_set, [175000, 10000])
+            self.mimic_datasets = cxr_random_split(mimic_set, [200000, 10000])
+            self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
+        else:
+            self.stanford_datasets = cxr_random_split(stanford_set, [210000, 10000])
+            self.mimic_datasets = cxr_random_split(mimic_set, [360000, 10000])
+            self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
 
         if train_data == "stanford":
             train_sets = [self.stanford_datasets[0]]
