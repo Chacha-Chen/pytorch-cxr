@@ -43,7 +43,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         self.local_rank = 0
         self.rank = 0
 
-        mode = "per_study"
+        mode = "per_image"
 
         CLASSES = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
         stanford_train_set = StanfordCxrDataset("train.csv", mode=mode, classes=CLASSES)
@@ -58,21 +58,33 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         nih_set = NihCxrDataset("Data_Entry_2017.csv", mode=mode, classes=CLASSES)
         nih_set.rename_classes({'Effusion': 'Pleural Effusion'})
 
-        self.stanford_datasets = cxr_random_split(stanford_set, [175000, 10000])
-        self.mimic_datasets = cxr_random_split(mimic_set, [200000, 10000])
-        self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
-
-        test_sets = [self.stanford_datasets[1], self.mimic_datasets[1], self.nih_datasets[1]]
+        if mode == "per_study":
+            self.stanford_datasets = cxr_random_split(stanford_set, [175000, 10000])
+            self.mimic_datasets = cxr_random_split(mimic_set, [200000, 10000])
+            self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
+        else:
+            self.stanford_datasets = cxr_random_split(stanford_set, [204000, 10000])
+            self.mimic_datasets = cxr_random_split(mimic_set, [357000, 10000])
+            self.nih_datasets = cxr_random_split(nih_set, [102000, 10000])
 
         if train_data == "stanford":
             train_sets = [self.stanford_datasets[0]]
-            batch_size = 16
+            if mode == "per_study":
+                batch_size = 7
+            else:
+                batch_size = 12
         elif train_data == "mimic":
             train_sets = [self.mimic_datasets[0]]
-            batch_size = 16
+            if mode == "per_study":
+                batch_size = 8
+            else:
+                batch_size = 21
         else:
             train_sets = [self.nih_datasets[0]]
-            batch_size = 16
+            if mode == "per_study":
+                batch_size = 4
+            else:
+                batch_size = 6
 
         test_sets = [self.stanford_datasets[1], self.mimic_datasets[1], self.nih_datasets[1]]
         self.set_data_loader(train_sets, test_sets, batch_size=batch_size)
@@ -90,8 +102,8 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
 
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
-        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
@@ -149,15 +161,24 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         if dataset_id == 0:
             train_sets = [self.stanford_datasets[0]]
             test_sets = [self.stanford_datasets[1]]
-            batch_size = 16
+            if mode == "per_study":
+                batch_size = 7
+            else:
+                batch_size = 12
         elif dataset_id == 1:
             train_sets = [self.mimic_datasets[0]]
             test_sets = [self.mimic_datasets[1]]
-            batch_size = 16
+            if mode == "per_study":
+                batch_size = 8
+            else:
+                batch_size = 21
         else: # dataset_id == 2
             train_sets = [self.nih_datasets[0]]
             test_sets = [self.nih_datasets[1]]
-            batch_size = 16
+            if mode == "per_study":
+                batch_size = 4
+            else:
+                batch_size = 6
 
         self.set_data_loader(train_sets, test_sets, batch_size=batch_size)
 
@@ -166,8 +187,8 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         self.model.to_distributed(self.device)
 
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
-        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
 
 class NoniidTrainer(Trainer):

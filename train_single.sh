@@ -2,9 +2,9 @@
 
 datamode="noniid_max_single"
 dataset="stanford"
-mode="per_study"
-desc="custom"
-runtime_dir="20190920_${datamode}_${dataset}_${mode}_${desc}"
+mode="per_image"
+desc="postive_weight"
+runtime_dir="20190923_${datamode}_${dataset}_${mode}_${desc}"
 
 rm -rf runtime/$runtime_dir
 

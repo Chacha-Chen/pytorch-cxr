@@ -87,7 +87,6 @@ class TrainEnvironment(PredictEnvironment):
             self.mimic_datasets = cxr_random_split(mimic_set, [360000, 10000])
             self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
 
-
         train_set = CxrConcatDataset([self.stanford_datasets[0], self.mimic_datasets[0], self.nih_datasets[0]])
         #partial_train_set = CxrSubset(train_set, torch.randperm(len(train_set)).tolist()[:10])
         test_sets = [self.stanford_datasets[1], self.mimic_datasets[1], self.nih_datasets[1]]
