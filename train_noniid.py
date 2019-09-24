@@ -63,19 +63,28 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
             self.mimic_datasets = cxr_random_split(mimic_set, [200000, 10000])
             self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
         else:
-            self.stanford_datasets = cxr_random_split(stanford_set, [210000, 10000])
-            self.mimic_datasets = cxr_random_split(mimic_set, [360000, 10000])
-            self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
+            self.stanford_datasets = cxr_random_split(stanford_set, [204000, 10000])
+            self.mimic_datasets = cxr_random_split(mimic_set, [357000, 10000])
+            self.nih_datasets = cxr_random_split(nih_set, [102000, 10000])
 
         if train_data == "stanford":
             train_sets = [self.stanford_datasets[0]]
-            batch_size = 16
+            if mode == "per_study":
+                batch_size = 7
+            else:
+                batch_size = 12
         elif train_data == "mimic":
             train_sets = [self.mimic_datasets[0]]
-            batch_size = 16
+            if mode == "per_study":
+                batch_size = 8
+            else:
+                batch_size = 21
         else:
             train_sets = [self.nih_datasets[0]]
-            batch_size = 16
+            if mode == "per_study":
+                batch_size = 4
+            else:
+                batch_size = 6
 
         test_sets = [self.stanford_datasets[1], self.mimic_datasets[1], self.nih_datasets[1]]
         self.set_data_loader(train_sets, test_sets, batch_size=batch_size)
@@ -152,15 +161,24 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         if dataset_id == 0:
             train_sets = [self.stanford_datasets[0]]
             test_sets = [self.stanford_datasets[1]]
-            batch_size = 16
+            if mode == "per_study":
+                batch_size = 7
+            else:
+                batch_size = 12
         elif dataset_id == 1:
             train_sets = [self.mimic_datasets[0]]
             test_sets = [self.mimic_datasets[1]]
-            batch_size = 16
+            if mode == "per_study":
+                batch_size = 8
+            else:
+                batch_size = 21
         else: # dataset_id == 2
             train_sets = [self.nih_datasets[0]]
             test_sets = [self.nih_datasets[1]]
-            batch_size = 16
+            if mode == "per_study":
+                batch_size = 4
+            else:
+                batch_size = 6
 
         self.set_data_loader(train_sets, test_sets, batch_size=batch_size)
 
