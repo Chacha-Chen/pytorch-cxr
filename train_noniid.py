@@ -43,7 +43,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         self.local_rank = 0
         self.rank = 0
 
-        mode = "per_image"
+        mode = "per_study"
 
         CLASSES = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
         stanford_train_set = StanfordCxrDataset("train.csv", mode=mode, classes=CLASSES)
@@ -102,8 +102,8 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
 
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        #self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
@@ -187,8 +187,8 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         self.model.to_distributed(self.device)
 
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        #self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
 
 class NoniidTrainer(Trainer):
