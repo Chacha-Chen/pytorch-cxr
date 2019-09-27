@@ -7,8 +7,8 @@ export MASTER_ADDR="127.0.0.1"
 export MASTER_PORT="12345"
 
 datamode="noniid_max_dist"
-mode="per_study"
-desc="no_positive_weight"
+mode="per_image"
+desc="no_postive_weight"
 runtime_dir="20190924_${datamode}_${mode}_${desc}"
 
 rm -rf runtime/$runtime_dir

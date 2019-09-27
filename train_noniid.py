@@ -102,8 +102,8 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
 
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        #self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
@@ -187,8 +187,8 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
         self.model.to_distributed(self.device)
 
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
-        self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        #self.loss = nn.BCEWithLogitsLoss(reduction='none')
+        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
 
 class NoniidTrainer(Trainer):
@@ -226,6 +226,23 @@ class NoniidTrainer(Trainer):
                 break
 
 
+def main(args):
+    distributed, runtime_path, device = initialize(args)
+
+    # start training
+    if distributed:
+        env = NoniidDistributedTrainEnvironment(device, args.local_rank, amp_enable=args.amp)
+    else:
+        logger.info(f"using {args.main_dataset} as the main dataset")
+        assert args.main_dataset in DATASETS
+        env = NoniidSingleTrainEnvironment(device, train_data=args.main_dataset, amp_enable=args.amp)
+
+    t = NoniidTrainer(env, runtime_path=runtime_path, tensorboard=args.tensorboard)
+    t.train(args.epoch, start_epoch=args.start_epoch)
+    #t.cross_test_only(args.epoch, start_epoch=args.start_epoch)
+    #t.dist_cross_test_only(args.epoch, start_epoch=args.start_epoch)
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -243,18 +260,4 @@ if __name__ == "__main__":
     parser.add_argument('--ignore-repo-dirty', default=False, action='store_true', help="not checking the repo clean")
     args = parser.parse_args()
 
-    distributed, runtime_path, device = initialize(args)
-
-    # start training
-    if distributed:
-        env = NoniidDistributedTrainEnvironment(device, args.local_rank, amp_enable=args.amp)
-    else:
-        logger.info(f"using {args.main_dataset} as the main dataset")
-        assert args.main_dataset in DATASETS
-        env = NoniidSingleTrainEnvironment(device, train_data=args.main_dataset, amp_enable=args.amp)
-
-    t = NoniidTrainer(env, runtime_path=runtime_path, tensorboard=args.tensorboard)
-    t.train(args.epoch, start_epoch=args.start_epoch)
-    #t.cross_test_only(args.epoch, start_epoch=args.start_epoch)
-    #t.dist_cross_test_only(args.epoch, start_epoch=args.start_epoch)
-
+    main(args)
