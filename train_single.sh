@@ -3,8 +3,8 @@
 datamode="noniid_max_single"
 dataset="stanford"
 mode="per_study"
-desc="positive_weight"
-runtime_dir="20190925_${datamode}_${dataset}_${mode}_${desc}"
+desc="no_positive_weight_layernorm"
+runtime_dir="20190927_${datamode}_${dataset}_${mode}_${desc}"
 
 rm -rf runtime/$runtime_dir
 

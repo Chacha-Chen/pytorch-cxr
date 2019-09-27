@@ -95,8 +95,8 @@ class CustomBlock(nn.Module):
         super().__init__()
         self.blocks = nn.ModuleList([
             nn.Sequential(OrderedDict([
-                ('bn0', nn.BatchNorm1d(hidden)),
-                #('do0', nn.Dropout(0.5)),
+                #('bn0', nn.BatchNorm1d(hidden)),
+                #('do0', nn.Dropout(0.2)),
                 ('fc0', nn.Linear(hidden, hidden)),
                 ('rl0', nn.ReLU())
             ]))
@@ -137,7 +137,7 @@ class Network(nn.Module):
         #])
 
         self.custom = nn.Sequential(OrderedDict([
-            #('ln0', nn.LayerNorm(num_hidden, elementwise_affine=True)),
+            ('ln0', nn.LayerNorm(num_hidden, elementwise_affine=True)),
             ('cb0', CustomBlock(blocks=3, hidden=num_hidden)),
             ('fc0', nn.Linear(num_hidden, out_dim)),
         ]))
