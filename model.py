@@ -96,9 +96,9 @@ class CustomBlock(nn.Module):
         self.blocks = nn.ModuleList([
             nn.Sequential(OrderedDict([
                 ('bn0', nn.BatchNorm1d(hidden)),
-                #('do0', nn.Dropout(0.5)),
                 ('fc0', nn.Linear(hidden, hidden)),
-                ('rl0', nn.ReLU())
+                ('rl0', nn.ReLU()),
+                ('do0', nn.Dropout(0.25)),
             ]))
             for _ in range(blocks)
         ])

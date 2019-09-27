@@ -10,8 +10,11 @@ datamode="noniid_max_dist"
 mode="per_image"
 desc="no_postive_weight"
 runtime_dir="20190924_${datamode}_${mode}_${desc}"
+start_epoch=1
 
-rm -rf runtime/$runtime_dir
+if [ $start_epoch -gt 1 ]; then
+  rm -rf runtime/$runtime_dir
+fi
 
 python -m torch.distributed.launch \
   --nnodes 1 \
@@ -22,5 +25,6 @@ python -m torch.distributed.launch \
   train_noniid.py \
   --cuda 0,1,2 \
   --runtime-dir $runtime_dir \
+  --start-epoch $start_epoch \
   --tensorboard \
   --ignore-repo-dirty
