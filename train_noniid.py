@@ -70,7 +70,8 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         if train_data == "stanford":
             train_sets = [self.stanford_datasets[0]]
             if self.mode == "per_study":
-                batch_size = 7
+                #batch_size = 7
+                batch_size = 16
             else:
                 batch_size = 12
         elif train_data == "mimic":
@@ -120,7 +121,7 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         pin_memory = True if self.device.type == 'cuda' else False
         self.train_loader = DataLoader(train_set, batch_size=batch_size, num_workers=num_workers,
                                        shuffle=True, pin_memory=pin_memory)
-        self.test_loaders = [DataLoader(test_set, batch_size=batch_size * 2, num_workers=num_workers,
+        self.test_loaders = [DataLoader(test_set, batch_size=batch_size * 4, num_workers=num_workers,
                                         shuffle=False, pin_memory=pin_memory)
                              for test_set in test_sets]
 
