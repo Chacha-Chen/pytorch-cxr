@@ -98,14 +98,16 @@ class CustomBlock(nn.Module):
                 ('bn0', nn.BatchNorm1d(hidden)),
                 ('fc0', nn.Linear(hidden, hidden)),
                 ('rl0', nn.ReLU()),
-                ('do0', nn.Dropout(0.25)),
+                #('do0', nn.Dropout(0.25)),
             ]))
             for _ in range(blocks)
         ])
 
     def forward(self, x):
-        for block in self.blocks:
+        for i, block in enumerate(self.blocks):
             y = block(x)
+            if i == 1:
+                F.dropout(y, p=0.25, training=self.training, inplace=True)
             x = y + x
         return x
 
@@ -124,8 +126,8 @@ class Network(nn.Module):
 
         num_hidden = 256
         #self.main = tvm.densenet121(pretrained=False, drop_rate=0.5, num_classes=self.num_hidden)
-        self.main = tvm.densenet121(pretrained=False, drop_rate=0, num_classes=num_hidden)
-        self.main.features.conv0 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=True)
+        self.main = tvm.densenet169(pretrained=False, drop_rate=0.25, num_classes=num_hidden)
+        self.main.features.conv0 = nn.Conv2d(1, 32, kernel_size=7, stride=2, padding=3, bias=True)
 
         #self.custom = nn.ModuleList([
         #    nn.Sequential(OrderedDict([
