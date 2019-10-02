@@ -23,7 +23,7 @@ python -m torch.distributed.launch \
   --master_addr $MASTER_ADDR \
   --master_port $MASTER_PORT \
   train_noniid.py \
-  --cuda 0,1,2 \
+  --cuda 0 \
   --runtime-dir $runtime_dir \
   --start-epoch $start_epoch \
   --tensorboard \

@@ -7,7 +7,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 import torchvision.models as tvm
 
-from dataset import MAX_CHS
+from dataset import MAX_CHS, Mode
 
 
 class STN(nn.Module):
@@ -114,7 +114,7 @@ class CustomBlock(nn.Module):
 
 class Network(nn.Module):
 
-    def __init__(self, out_dim=14, mode="per_image"):
+    def __init__(self, out_dim=14, mode=Mode.PER_IMAGE):
         super().__init__()
         #self.stn = STN()
         #self.winopt = WindowOptimizer()
@@ -127,7 +127,7 @@ class Network(nn.Module):
         num_hidden = 256
         #self.main = tvm.densenet121(pretrained=False, drop_rate=0.5, num_classes=self.num_hidden)
         self.main = tvm.densenet169(pretrained=False, drop_rate=0.25, num_classes=num_hidden)
-        self.main.features.conv0 = nn.Conv2d(1, 32, kernel_size=7, stride=2, padding=3, bias=True)
+        self.main.features.conv0 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=True)
 
         #self.custom = nn.ModuleList([
         #    nn.Sequential(OrderedDict([
@@ -161,7 +161,7 @@ class Network(nn.Module):
                                             find_unused_parameters=True)
 
     def forward(self, x, num_chs):
-        if self.mode == "per_image":
+        if self.mode == Mode.PER_IMAGE:
             z = self.main(x)
         else:
             y = [x[b, :c, :, :] for b, c in enumerate(num_chs)]
