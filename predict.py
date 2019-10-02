@@ -6,7 +6,7 @@ import torch
 import matplotlib.pyplot as plt
 
 from utils import logger, get_devices, print_versions
-from dataset import STANFORD_CXR_BASE, MIMIC_CXR_BASE, NIH_CXR_BASE, MODES, get_study, get_image, cxr_test_transforms
+from dataset import Mode, STANFORD_CXR_BASE, MIMIC_CXR_BASE, NIH_CXR_BASE, get_study, get_image, cxr_test_transforms
 from model import Network
 #from danet import Network
 
@@ -15,7 +15,7 @@ pd.set_option('mode.chained_assignment', None)
 
 class PredictEnvironment:
 
-    def __init__(self, out_dim, device, mode="per_study", model_path=None):
+    def __init__(self, out_dim, device, mode=Mode.PER_STUDY, model_path=None):
         self.device = device
         self.mode = mode
         self.model = Network(out_dim, mode=mode).to(self.device)
@@ -64,7 +64,7 @@ class Predictor:
         return image_tensor
 
     def predict(self, input_path):
-        if self.env.mode == "per_study":
+        if self.env.mode == Mode.PER_STUDY:
             x = self.get_study_input(input_path)
         else:
             x = self.get_image_input(input_path)
@@ -82,8 +82,7 @@ class Predictor:
         return output
 
 
-def load_manifest(file_path, mode="per_study"):
-    assert mode in MODES
+def load_manifest(file_path, mode=Mode.PER_STUDY):
     if not file_path.exists():
         logger.error(f"manifest file {file_path} not found.")
         sys.exit(1)
@@ -91,9 +90,9 @@ def load_manifest(file_path, mode="per_study"):
     logger.debug(f"loading dataset manifest {file_path} ...")
     df = pd.read_csv(str(file_path)).fillna(0)
     df_tmp = df[[df.columns[0]]]
-    if mode == "per_image":
+    if mode == Mode.PER_IMAGE:
         entries = df_tmp
-    elif mode == "per_study":
+    elif mode == Mode.PER_STUDY:
         logger.debug("grouping by studies ... ")
         df_tmp['study'] = df_tmp.apply(lambda x: str(Path(x[0]).parent), axis=1)
         df_tmp.set_index(['study'], inplace=True)
@@ -121,7 +120,7 @@ if __name__ == "__main__":
     device = get_devices(args.cuda)[0]
     print_versions()
 
-    mode = "per_study"
+    mode = Mode.PER_STUDY
     LABELS = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
     model_path = Path(args.model).resolve()
     #model_path = Path("train_20190526_per_study/model_epoch_030.pth.tar").resolve()

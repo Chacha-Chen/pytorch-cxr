@@ -22,7 +22,7 @@ python -m torch.distributed.launch \
   --nproc_per_node 3 \
   --master_addr $MASTER_ADDR \
   --master_port $MASTER_PORT \
-  train_noniid.py \
+  train.py \
   --cuda 0,1,2 \
   --runtime-dir $runtime_dir \
   --start-epoch $start_epoch \

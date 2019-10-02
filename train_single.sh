@@ -3,8 +3,8 @@
 datamode="noniid_max_single"
 dataset="stanford"
 mode="per_study"
-desc="no_positive_weight_dropout"
-runtime_dir="20190927_${datamode}_${dataset}_${mode}_${desc}"
+desc="densenet169_dropout"
+runtime_dir="20191001_${datamode}_${dataset}_${mode}_${desc}"
 start_epoch=1
 
 if [ $start_epoch -gt 1 ]; then

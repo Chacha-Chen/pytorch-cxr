@@ -2,6 +2,7 @@ import sys
 import bisect
 from pathlib import Path
 from collections import Counter
+from enum import Enum
 
 import numpy as np
 import imageio
@@ -26,7 +27,6 @@ STANFORD_CXR_BASE = CXR_BASE.joinpath("stanford/v1").resolve()
 MIMIC_CXR_BASE = CXR_BASE.joinpath("mimic/v1").resolve()
 NIH_CXR_BASE = CXR_BASE.joinpath("nih/v1").resolve()
 
-MODES = ["per_image", "per_study"]
 MIN = 256
 MAX_CHS = 11
 MEAN = 0.4
@@ -122,12 +122,16 @@ def get_study(img_paths, transforms, use_memcache=False):
     return image_tensor
 
 
+class Mode(Enum):
+    PER_IMAGE = 0
+    PER_STUDY = 1
+
+
 class CxrDataset(Dataset):
 
-    def __init__(self, base_path, manifest_file, mode="per_study", classes=None, *args, **kwargs):
+    def __init__(self, base_path, manifest_file, mode=Mode.PER_IMAGE, classes=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.base_path = base_path
-        assert mode in MODES, f"mode is one of {MODES}"
         self.mode = mode
         self.classes = classes
         self.transforms = cxr_train_transforms
@@ -141,12 +145,12 @@ class CxrDataset(Dataset):
             label = df[1:].tolist()
             return paths, label
 
-        if self.mode == "per_image":
+        if self.mode == Mode.PER_IMAGE:
             img_paths, label = get_entries(index)
             image_tensor = get_image(img_paths[0], self.transforms)
             target_tensor = torch.FloatTensor(label)
             channels = 1
-        else:
+        else:  # Mode.PER_STUDY
             img_paths, label = get_entries(index)
             image_tensor = get_study(img_paths, self.transforms)
             target_tensor = torch.FloatTensor(label)
@@ -167,9 +171,9 @@ class CxrDataset(Dataset):
             sys.exit(1)
         df_tmp = self.load_manifest(manifest_path)
 
-        if self.mode == "per_image":
+        if self.mode == Mode.PER_IMAGE:
             self.entries = df_tmp
-        else:
+        else:  # Mode.PER_STUDY
             logger.debug("grouping by studies ... ")
             df_tmp['study'] = df_tmp.apply(lambda x: str(Path(x[0]).parent), axis=1)
             df_tmp.set_index(['study'], inplace=True)

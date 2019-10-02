@@ -25,17 +25,20 @@ from apex import amp
 
 from utils import logger, print_versions, get_devices, get_ip, get_commit
 from predict import PredictEnvironment, Predictor
-from train import Trainer, initialize
-from dataset import StanfordCxrDataset, MitCxrDataset, NihCxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
+from train import BaseTrainEnvironment, Trainer, initialize
+from dataset import Mode, StanfordCxrDataset, MitCxrDataset, NihCxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
 
 
 DATASETS = ["stanford", "mimic", "nih"]
 
 
-class NoniidSingleTrainEnvironment(PredictEnvironment):
+class NoniidSingleTrainEnvironment(BaseTrainEnvironment):
 
     def __init__(self, device, train_data="stanford", amp_enable=False):
-        self.device = device
+        self.mode = Mode.PER_STUDY
+
+        super().__init__(device=device, mode=self.mode)
+
         self.distributed = False
         self.amp = amp_enable
 
@@ -43,54 +46,9 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         self.local_rank = 0
         self.rank = 0
 
-        self.mode = "per_study"
+        self.prepare_dataset()
 
-        CLASSES = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
-        stanford_train_set = StanfordCxrDataset("train.csv", mode=self.mode, classes=CLASSES)
-        stanford_test_set = StanfordCxrDataset("valid.csv", mode=self.mode, classes=CLASSES)
-        stanford_set = CxrConcatDataset([stanford_train_set, stanford_test_set])
-
-        mimic_train_set = MitCxrDataset("train.csv", mode=self.mode, classes=CLASSES)
-        mimic_test_set = MitCxrDataset("valid.csv", mode=self.mode, classes=CLASSES)
-        mimic_set = CxrConcatDataset([mimic_train_set, mimic_test_set])
-
-        CLASSES = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion']
-        nih_set = NihCxrDataset("Data_Entry_2017.csv", mode=self.mode, classes=CLASSES)
-        nih_set.rename_classes({'Effusion': 'Pleural Effusion'})
-
-        if self.mode == "per_study":
-            self.stanford_datasets = cxr_random_split(stanford_set, [175000, 10000])
-            self.mimic_datasets = cxr_random_split(mimic_set, [200000, 10000])
-            self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
-        else:
-            self.stanford_datasets = cxr_random_split(stanford_set, [204000, 10000])
-            self.mimic_datasets = cxr_random_split(mimic_set, [357000, 10000])
-            self.nih_datasets = cxr_random_split(nih_set, [102000, 10000])
-
-        if train_data == "stanford":
-            train_sets = [self.stanford_datasets[0]]
-            if self.mode == "per_study":
-                #batch_size = 7
-                batch_size = 16
-            else:
-                batch_size = 12
-        elif train_data == "mimic":
-            train_sets = [self.mimic_datasets[0]]
-            if self.mode == "per_study":
-                batch_size = 8
-            else:
-                batch_size = 21
-        else:
-            train_sets = [self.nih_datasets[0]]
-            if self.mode == "per_study":
-                batch_size = 4
-            else:
-                batch_size = 6
-
-        test_sets = [self.stanford_datasets[1], self.mimic_datasets[1], self.nih_datasets[1]]
-        self.set_data_loader(train_sets, test_sets, batch_size=batch_size)
-
-        self.classes = [x.lower() for x in self.train_loader.dataset.classes]
+        self.classes = [x.lower() for x in self.stanford_datasets[0].classes]
         self.out_dim = len(self.classes)
 
         super().__init__(out_dim=self.out_dim, device=self.device, mode=self.mode)
@@ -109,7 +67,21 @@ class NoniidSingleTrainEnvironment(PredictEnvironment):
         if self.amp:
             self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
-    def set_data_loader(self, train_sets, test_sets, batch_size=6, num_workers=4):
+    def prepare_dataset(self):
+        if self.train_data == "stanford":
+            train_sets = [self.stanford_datasets[0]]
+            batch_size = 16 if self.mode == Mode.PER_STUDY else 12
+        elif self.train_data == "mimic":
+            train_sets = [self.mimic_datasets[0]]
+            batch_size = 8 if self.mode == Mode.PER_STUDY else 21
+        else:  # train_data == "nih"
+            train_sets = [self.nih_datasets[0]]
+            batch_size = 4 if self.mode == Mode.PER_STUDY else 6
+
+        test_sets = [self.stanford_datasets[1], self.mimic_datasets[1], self.nih_datasets[1]]
+        self._set_data_loader(train_sets, test_sets, batch_size=batch_size)
+
+    def _set_data_loader(self, train_sets, test_sets, batch_size, num_workers=0):
         #num_trainset = 20000
         train_group_id = int(self.rank / len(DATASETS))
         logger.info(f"rank {self.rank} sets {self.train_data} group {train_group_id}")
@@ -150,46 +122,35 @@ class NoniidDistributedTrainEnvironment(NoniidSingleTrainEnvironment):
 
     def __init__(self, device, local_rank, amp_enable=False):
         rank = dist.get_rank()
-        dataset_id = rank % len(DATASETS)
+        train_data = DATASETS[rank % len(DATASETS)]
 
-        super().__init__(device, train_data=DATASETS[dataset_id], amp_enable=amp_enable)
+        super().__init__(device, train_data=train_data, amp_enable=amp_enable)
         self.distributed = True
         self.local_rank = local_rank
         self.world_size = dist.get_world_size()
         self.rank = rank
         logger.info(f"initialized on {device} as rank {self.rank} of {self.world_size}")
 
-        if dataset_id == 0:
-            train_sets = [self.stanford_datasets[0]]
-            test_sets = [self.stanford_datasets[1]]
-            if self.mode == "per_study":
-                batch_size = 7
-            else:
-                batch_size = 12
-        elif dataset_id == 1:
-            train_sets = [self.mimic_datasets[0]]
-            test_sets = [self.mimic_datasets[1]]
-            if self.mode == "per_study":
-                batch_size = 8
-            else:
-                batch_size = 21
-        else: # dataset_id == 2
-            train_sets = [self.nih_datasets[0]]
-            test_sets = [self.nih_datasets[1]]
-            if self.mode == "per_study":
-                batch_size = 4
-            else:
-                batch_size = 6
-
-        self.set_data_loader(train_sets, test_sets, batch_size=batch_size)
-
+        # make others distributed
         #self.model = DistributedDataParallel(self.model, device_ids=[self.device],
         #                                     output_device=self.device, find_unused_parameters=True)
         self.model.to_distributed(self.device)
 
-        self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
-        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        self.loss = nn.BCEWithLogitsLoss(reduction='none')
+    def prepare_dataset(self):
+        if self.train_data == "stanford":
+            train_sets = [self.stanford_datasets[0]]
+            test_sets = [self.stanford_datasets[1]]
+            batch_size = 7 if self.mode == Mode.PER_STUDY else 12
+        elif self.train_data == "mimic":
+            train_sets = [self.mimic_datasets[0]]
+            test_sets = [self.mimic_datasets[1]]
+            batch_size = 8 if self.mode == Mode.PER_STUDY else 21
+        else:  # train_data == "nih"
+            train_sets = [self.nih_datasets[0]]
+            test_sets = [self.nih_datasets[1]]
+            batch_size = 4 if self.mode == Mode.PER_STUDY else 6
+
+        self._set_data_loader(train_sets, test_sets, batch_size=batch_size)
 
 
 class NoniidTrainer(Trainer):

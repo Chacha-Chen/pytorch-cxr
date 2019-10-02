@@ -32,7 +32,7 @@ from apex import amp
 from utils import logger, print_versions, get_devices, get_ip, get_commit
 #from adamw import AdamW
 from predict import PredictEnvironment, Predictor
-from dataset import StanfordCxrDataset, MitCxrDataset, NihCxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
+from dataset import Mode, StanfordCxrDataset, MitCxrDataset, NihCxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
 
 
 def check_distributed(args):
@@ -48,22 +48,10 @@ def check_distributed(args):
         return True, device
 
 
-class TrainEnvironment(PredictEnvironment):
-    """
-    This environment object inherits PredictEnvironment from predict.py,
-    with adding the datasets and their corresponding data loaders,
-    optimizer, lr scheduler, and the loss function using in training.
-    """
+class BaseTrainEnvironment(PredictEnvironment):
 
-    def __init__(self, device, amp_enable=False):
+    def __init__(self, device, mode=Mode.PER_IMAGE):
         self.device = device
-        self.distributed = False
-        self.amp = amp_enable
-
-        self.local_rank = 0
-        self.rank = 0
-
-        mode = "per_image"
 
         CLASSES = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
         stanford_train_set = StanfordCxrDataset("train.csv", mode=mode, classes=CLASSES)
@@ -78,14 +66,31 @@ class TrainEnvironment(PredictEnvironment):
         nih_set = NihCxrDataset("Data_Entry_2017.csv", mode=mode, classes=CLASSES)
         nih_set.rename_classes({'Effusion': 'Pleural Effusion'})
 
-        if mode == "per_study":
+        if mode == Mode.PER_STUDY:
             self.stanford_datasets = cxr_random_split(stanford_set, [175000, 10000])
             self.mimic_datasets = cxr_random_split(mimic_set, [200000, 10000])
             self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
-        else:
+        else:  # Mode.PER_IMAGE
             self.stanford_datasets = cxr_random_split(stanford_set, [210000, 10000])
             self.mimic_datasets = cxr_random_split(mimic_set, [360000, 10000])
             self.nih_datasets = cxr_random_split(nih_set, [100000, 10000])
+
+        self.classes = [x.lower() for x in self.stanford_datasets[0].classes]
+        self.out_dim = len(self.classes)
+
+        super().__init__(out_dim=self.out_dim, device=self.device, mode=mode)
+
+
+class TrainEnvironment(BaseTrainEnvironment):
+
+    def __init__(self, device, amp_enable=False):
+        super().__init__(device=device)
+
+        self.distributed = False
+        self.amp = amp_enable
+
+        self.local_rank = 0
+        self.rank = 0
 
         train_set = CxrConcatDataset([self.stanford_datasets[0], self.mimic_datasets[0], self.nih_datasets[0]])
         #partial_train_set = CxrSubset(train_set, torch.randperm(len(train_set)).tolist()[:10])
@@ -105,16 +110,7 @@ class TrainEnvironment(PredictEnvironment):
             for test_set in test_sets
         ]
 
-        self.classes = [x.lower() for x in train_set.classes]
-        self.out_dim = len(self.classes)
-
-        #img, tar = datasets[0]
-        #plt.imshow(img.squeeze(), cmap='gray')
-
-        super().__init__(out_dim=self.out_dim, device=self.device, mode=mode)
-
         self.optimizer = optim.AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-4)
-
         self.scheduler = None
         #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
 
