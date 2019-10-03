@@ -174,9 +174,6 @@ class DistributedTrainEnvironment(TrainEnvironment):
         #                                     output_device=self.device, find_unused_parameters=True)
         self.model.to_distributed(self.device)
 
-        self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
-        #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        self.loss = nn.BCEWithLogitsLoss(reduction='none')
 
 class Trainer:
 

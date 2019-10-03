@@ -48,11 +48,6 @@ class NoniidSingleTrainEnvironment(BaseTrainEnvironment):
 
         self.prepare_dataset()
 
-        self.classes = [x.lower() for x in self.stanford_datasets[0].classes]
-        self.out_dim = len(self.classes)
-
-        super().__init__(out_dim=self.out_dim, device=self.device, mode=self.mode)
-
         self.optimizer = optim.AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-4)
         #self.optimizer = optim.SGD(self.model.parameters(), lr=1e-3, momentum=0.9, weight_decay=1e-4)
 
