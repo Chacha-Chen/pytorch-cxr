@@ -30,9 +30,9 @@ import sklearn.metrics as sklm
 from apex import amp
 
 from utils import logger, print_versions, get_devices, get_ip, get_commit
-#from adamw import AdamW
 from predict import PredictEnvironment, Predictor
 from dataset import Mode, StanfordCxrDataset, MitCxrDataset, NihCxrDataset, CxrConcatDataset, CxrSubset, cxr_random_split
+from ranger import Ranger
 
 
 def check_distributed(args):
@@ -50,8 +50,9 @@ def check_distributed(args):
 
 class BaseTrainEnvironment(PredictEnvironment):
 
-    def __init__(self, device, mode=Mode.PER_IMAGE):
+    def __init__(self, device, mode=Mode.PER_IMAGE, amp=False):
         self.device = device
+        self.amp = amp
 
         CLASSES = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Pleural Effusion']
         stanford_train_set = StanfordCxrDataset("train.csv", mode=mode, classes=CLASSES)
@@ -80,15 +81,24 @@ class BaseTrainEnvironment(PredictEnvironment):
 
         super().__init__(out_dim=self.out_dim, device=self.device, mode=mode)
 
+        #self.optimizer = optim.SGD(self.model.parameters(), lr=1e-3, momentum=0.9, weight_decay=1e-4)
+        #self.optimizer = optim.AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-4)
+        self.optimizer = Ranger(self.model.parameters())
+        self.scheduler = None
+        #self.scheduler = optim.lr_scheduler.LambdaLR(self.optimizer, lambda epoch: 0.5 ** epoch)
+        #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
+
+        self.loss = nn.BCEWithLogitsLoss(reduction='none')
+
+        if self.amp:
+            self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
+
 
 class TrainEnvironment(BaseTrainEnvironment):
 
     def __init__(self, device, amp_enable=False):
-        super().__init__(device=device)
-
+        super().__init__(device, amp=amp_enable)
         self.distributed = False
-        self.amp = amp_enable
-
         self.local_rank = 0
         self.rank = 0
 
@@ -110,16 +120,8 @@ class TrainEnvironment(BaseTrainEnvironment):
             for test_set in test_sets
         ]
 
-        self.optimizer = optim.AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-4)
-        self.scheduler = None
-        #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
-
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
         #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        self.loss = nn.BCEWithLogitsLoss(reduction='none')
-
-        if self.amp:
-            self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
     def get_positive_weights(self):
         train_df = self.train_loader.dataset.get_label_counts()

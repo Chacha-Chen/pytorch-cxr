@@ -36,31 +36,17 @@ class NoniidSingleTrainEnvironment(BaseTrainEnvironment):
 
     def __init__(self, device, train_data="stanford", amp_enable=False):
         self.mode = Mode.PER_STUDY
-
-        super().__init__(device=device, mode=self.mode)
+        super().__init__(device=device, mode=self.mode, amp=amp_enable)
 
         self.distributed = False
-        self.amp = amp_enable
-
         self.train_data = train_data
         self.local_rank = 0
         self.rank = 0
 
         self.prepare_dataset()
 
-        self.optimizer = optim.AdamW(self.model.parameters(), lr=1e-4, betas=(0.9, 0.999), eps=1e-8, weight_decay=1e-4)
-        #self.optimizer = optim.SGD(self.model.parameters(), lr=1e-3, momentum=0.9, weight_decay=1e-4)
-
-        self.scheduler = None
-        #self.scheduler = optim.lr_scheduler.LambdaLR(self.optimizer, lambda epoch: 0.5 ** epoch)
-        #self.scheduler = ReduceLROnPlateau(self.optimizer, factor=0.1, patience=5, mode='min')
-
         self.positive_weights = torch.FloatTensor(self.get_positive_weights()).to(device)
         #self.loss = nn.BCEWithLogitsLoss(pos_weight=self.positive_weights, reduction='none')
-        self.loss = nn.BCEWithLogitsLoss(reduction='none')
-
-        if self.amp:
-            self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O1")
 
     def prepare_dataset(self):
         if self.train_data == "stanford":
@@ -76,7 +62,7 @@ class NoniidSingleTrainEnvironment(BaseTrainEnvironment):
         test_sets = [self.stanford_datasets[1], self.mimic_datasets[1], self.nih_datasets[1]]
         self._set_data_loader(train_sets, test_sets, batch_size=batch_size)
 
-    def _set_data_loader(self, train_sets, test_sets, batch_size, num_workers=0):
+    def _set_data_loader(self, train_sets, test_sets, batch_size, num_workers=8):
         #num_trainset = 20000
         train_group_id = int(self.rank / len(DATASETS))
         logger.info(f"rank {self.rank} sets {self.train_data} group {train_group_id}")
@@ -88,7 +74,7 @@ class NoniidSingleTrainEnvironment(BaseTrainEnvironment):
         pin_memory = True if self.device.type == 'cuda' else False
         self.train_loader = DataLoader(train_set, batch_size=batch_size, num_workers=num_workers,
                                        shuffle=True, pin_memory=pin_memory)
-        self.test_loaders = [DataLoader(test_set, batch_size=batch_size * 4, num_workers=num_workers,
+        self.test_loaders = [DataLoader(test_set, batch_size=batch_size * 4, num_workers=num_workers * 2,
                                         shuffle=False, pin_memory=pin_memory)
                              for test_set in test_sets]
 

@@ -108,7 +108,7 @@ class CustomBlock(nn.Module):
             y = block(x)
             if i == 1:
                 F.dropout(y, p=0.25, training=self.training, inplace=True)
-            x = y + x
+                x = y + x
         return x
 
 
